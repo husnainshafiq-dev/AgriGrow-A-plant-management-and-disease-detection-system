@@ -1,9 +1,37 @@
+// ============================================================
+// 📊 Market Price Controller
+// ============================================================
+//
+// Two data sources, two paths:
+//
+//   1. PRODUCTION: prices are populated by the AMIS scraper
+//      (services/marketPriceScraper.js) on a daily cron job
+//      (jobs/marketPriceCron.js). This controller only reads.
+//
+//   2. DEV/SEED: if ENABLE_SEED_DATA=true, the controller will
+//      auto-seed 15 days of fake data the first time the
+//      collection is empty. This is for local development only
+//      and must NEVER be enabled in production.
+//
+// User-submitted prices go through `submitPrice` and are
+// flagged as unverified until an admin reviews them.
+// ============================================================
+
 const MarketPrice = require("../models/MarketPrice");
 const asyncHandler = require("express-async-handler");
 const { sendSuccess, sendError } = require("../utils/apiResponse");
+const logger = require("../utils/logger");
 
-// Helper to seed sample market price data if empty
+const SEED_ENABLED = process.env.ENABLE_SEED_DATA === "true";
+
+// ------------------------------------------------------------
+// Seed sample data — DEV ONLY
+// ------------------------------------------------------------
+// Only runs when the collection is empty AND ENABLE_SEED_DATA=true.
+// Disabled by default so production data is never clobbered.
 const seedSampleDataIfEmpty = async () => {
+    if (!SEED_ENABLED) return;
+
     const count = await MarketPrice.countDocuments();
     if (count > 0) return;
 
@@ -13,7 +41,7 @@ const seedSampleDataIfEmpty = async () => {
         Punjab: ["Multan Mandi", "Lahore Mandi", "Faisalabad Mandi"],
         Sindh: ["Karachi Mandi", "Hyderabad Mandi", "Sukkur Mandi"],
         KPK: ["Peshawar Mandi", "Mardan Mandi"],
-        Balochistan: ["Quetta Mandi", "Khuzdar Mandi"]
+        Balochistan: ["Quetta Mandi", "Khuzdar Mandi"],
     };
 
     const priceRanges = {
@@ -24,13 +52,12 @@ const seedSampleDataIfEmpty = async () => {
         maize: { min: 2200, max: 2800, unit: "per_40kg" },
         potato: { min: 80, max: 120, unit: "per_kg" },
         onion: { min: 140, max: 220, unit: "per_kg" },
-        tomato: { min: 100, max: 180, unit: "per_kg" }
+        tomato: { min: 100, max: 180, unit: "per_kg" },
     };
 
     const entries = [];
     const today = new Date();
 
-    // Create 15 days of price history for each crop/mandi combination
     for (let dayOffset = 14; dayOffset >= 0; dayOffset--) {
         const date = new Date();
         date.setDate(today.getDate() - dayOffset);
@@ -40,8 +67,7 @@ const seedSampleDataIfEmpty = async () => {
             for (const province of provinces) {
                 const mandiList = mandis[province];
                 for (const mandi of mandiList) {
-                    // Introduce minor daily variations
-                    const variance = (Math.random() - 0.5) * 0.05; // Max 5% variation
+                    const variance = (Math.random() - 0.5) * 0.05;
                     const avgPrice = Math.round(range.min + (range.max - range.min) / 2);
                     const currentAvg = Math.round(avgPrice * (1 + variance));
                     const currentMin = Math.round(range.min * (1 + variance));
@@ -55,12 +81,12 @@ const seedSampleDataIfEmpty = async () => {
                             min: currentMin,
                             max: currentMax,
                             average: currentAvg,
-                            unit: range.unit
+                            unit: range.unit,
                         },
                         currency: "PKR",
                         date,
-                        source: "admin",
-                        isVerified: true
+                        source: "seed-data",
+                        isVerified: true,
                     });
                 }
             }
@@ -68,8 +94,12 @@ const seedSampleDataIfEmpty = async () => {
     }
 
     await MarketPrice.insertMany(entries);
-    console.log("Seeded sample market price records successfully!");
+    logger.warn(`🌱 [market] seeded ${entries.length} sample records (DEV ONLY)`);
 };
+
+// ============================================================
+// READ ENDPOINTS
+// ============================================================
 
 // @desc    Get paginated crop prices with filters
 // @route   GET /api/market/prices
@@ -83,7 +113,7 @@ const getPrices = asyncHandler(async (req, res) => {
     if (crop) filter.cropName = crop.toLowerCase();
     if (market) filter.market = market;
     if (province) filter.province = province;
-    
+
     if (dateFrom || dateTo) {
         filter.date = {};
         if (dateFrom) filter.date.$gte = new Date(dateFrom);
@@ -105,11 +135,11 @@ const getPrices = asyncHandler(async (req, res) => {
         prices,
         total,
         page: Number(page),
-        pages: Math.ceil(total / limit)
+        pages: Math.ceil(total / limit),
     });
 });
 
-// @desc    Get the latest verified price for each crop
+// @desc    Get the latest verified price for each crop/market
 // @route   GET /api/market/prices/latest
 // @access  Public
 const getLatestPrices = asyncHandler(async (req, res) => {
@@ -127,10 +157,11 @@ const getLatestPrices = asyncHandler(async (req, res) => {
                 province: { $first: "$province" },
                 price: { $first: "$price" },
                 currency: { $first: "$currency" },
-                date: { $first: "$date" }
-            }
+                date: { $first: "$date" },
+                source: { $first: "$source" },
+            },
         },
-        { $sort: { date: -1 } }
+        { $sort: { date: -1 } },
     ];
 
     const latest = await MarketPrice.aggregate(pipeline);
@@ -148,7 +179,7 @@ const getCropPriceHistory = asyncHandler(async (req, res) => {
     const filter = {
         cropName: cropName.toLowerCase(),
         isVerified: true,
-        date: { $gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000) }
+        date: { $gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000) },
     };
 
     if (province) filter.province = province;
@@ -156,7 +187,7 @@ const getCropPriceHistory = asyncHandler(async (req, res) => {
 
     const history = await MarketPrice.find(filter)
         .sort({ date: 1 })
-        .select("date price market province");
+        .select("date price market province source");
 
     sendSuccess(res, 200, `Price history for ${cropName} retrieved`, history);
 });
@@ -171,7 +202,6 @@ const getTrends = asyncHandler(async (req, res) => {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(today.getDate() - 7);
 
-    // Group latest prices and compare with prices from 7 days ago
     const cropGroupLatest = await MarketPrice.aggregate([
         { $match: { isVerified: true } },
         { $sort: { cropName: 1, date: -1 } },
@@ -180,9 +210,9 @@ const getTrends = asyncHandler(async (req, res) => {
                 _id: "$cropName",
                 latestAvg: { $first: "$price.average" },
                 unit: { $first: "$price.unit" },
-                currency: { $first: "$currency" }
-            }
-        }
+                currency: { $first: "$currency" },
+            },
+        },
     ]);
 
     const cropGroupWeekly = await MarketPrice.aggregate([
@@ -191,14 +221,14 @@ const getTrends = asyncHandler(async (req, res) => {
         {
             $group: {
                 _id: "$cropName",
-                oldAvg: { $first: "$price.average" }
-            }
-        }
+                oldAvg: { $first: "$price.average" },
+            },
+        },
     ]);
 
-    const trends = cropGroupLatest.map(item => {
-        const weekly = cropGroupWeekly.find(w => w._id === item._id);
-        const oldPrice = weekly ? weekly.oldAvg : item.latestAvg * 0.95; // Default mock 5% lower if no history
+    const trends = cropGroupLatest.map((item) => {
+        const weekly = cropGroupWeekly.find((w) => w._id === item._id);
+        const oldPrice = weekly ? weekly.oldAvg : item.latestAvg * 0.95;
         const changeVal = item.latestAvg - oldPrice;
         const changePct = (changeVal / oldPrice) * 100;
 
@@ -208,12 +238,34 @@ const getTrends = asyncHandler(async (req, res) => {
             unit: item.unit,
             currency: item.currency,
             change: Number(changeVal.toFixed(2)),
-            changePct: Number(changePct.toFixed(2))
+            changePct: Number(changePct.toFixed(2)),
         };
     });
 
     sendSuccess(res, 200, "Price trends calculated", trends);
 });
+
+// @desc    Get list of unique crop names that are tracked
+// @route   GET /api/market/crops
+// @access  Public
+const getCropsList = asyncHandler(async (req, res) => {
+    await seedSampleDataIfEmpty();
+    const crops = await MarketPrice.distinct("cropName", { isVerified: true });
+    sendSuccess(res, 200, "Tracked crops retrieved", crops);
+});
+
+// @desc    Get list of unique mandis/markets
+// @route   GET /api/market/mandis
+// @access  Public
+const getMandis = asyncHandler(async (req, res) => {
+    await seedSampleDataIfEmpty();
+    const mandis = await MarketPrice.distinct("market", { isVerified: true });
+    sendSuccess(res, 200, "Tracked markets/mandis retrieved", mandis);
+});
+
+// ============================================================
+// WRITE ENDPOINTS
+// ============================================================
 
 // @desc    Submit a crop price (user contribution)
 // @route   POST /api/market/prices
@@ -233,47 +285,96 @@ const submitPrice = asyncHandler(async (req, res) => {
             min: price.min || price.average * 0.95,
             max: price.max || price.average * 1.05,
             average: price.average,
-            unit: price.unit || "per_40kg"
+            unit: price.unit || "per_40kg",
         },
         currency: "PKR",
         date: date || new Date(),
         source: req.user.role === "admin" ? "admin" : "user-contributed",
         submittedBy: req.user._id,
-        isVerified: req.user.role === "admin" // Auto-verified if admin
+        isVerified: req.user.role === "admin",
     });
 
     sendSuccess(
         res,
         201,
-        req.user.role === "admin" 
-            ? "Market price recorded successfully" 
+        req.user.role === "admin"
+            ? "Market price recorded successfully"
             : "Price report submitted. It will be visible once verified.",
         priceEntry
     );
 });
 
-// @desc    Get list of unique crop names that are tracked
-// @route   GET /api/market/crops
-// @access  Public
-const getTrackedCrops = asyncHandler(async (res, res2) => {
-    // Note: express-async-handler routes might pass req, res as first two params. Let's name them correctly.
-    // Express handler standard signature is (req, res)
+// @desc    Admin manual-override entry (failsafe when scraper is broken)
+// @route   POST /api/market/prices/manual
+// @access  Private (Admin)
+//
+// Allows an admin to punch in prices for a (crop, market, date)
+// triple directly. Use this when:
+//   • The AMIS scraper is failing
+//   • AMIS is missing a crop
+//   • You need to correct a bad scrape
+//
+// Body: { cropName, market, province, price: { average, min?, max?, unit? }, date? }
+const manualPriceEntry = asyncHandler(async (req, res) => {
+    const { cropName, market, province, price, date } = req.body;
+
+    if (!cropName || !market || !province || !price || !price.average) {
+        return sendError(res, 400, "Missing required fields: cropName, market, province, price.average");
+    }
+
+    const entryDate = date ? new Date(date) : new Date();
+    entryDate.setHours(0, 0, 0, 0);
+
+    const record = {
+        cropName: cropName.toLowerCase(),
+        market,
+        province,
+        price: {
+            min: price.min ?? price.average * 0.95,
+            max: price.max ?? price.average * 1.05,
+            average: price.average,
+            unit: price.unit || "per_100kg",
+        },
+        currency: "PKR",
+        date: entryDate,
+        source: "admin-manual",
+        submittedBy: req.user._id,
+        isVerified: true,
+        verifiedBy: req.user._id,
+    };
+
+    // Upsert: replace any existing record for this (crop, market, date)
+    const result = await MarketPrice.findOneAndUpdate(
+        { cropName: record.cropName, market: record.market, date: entryDate },
+        { $set: record },
+        { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+
+    logger.info(
+        `📝 [market] admin manual entry: ${record.cropName} @ ${record.market} = ₨${record.price.average}`
+    );
+
+    sendSuccess(res, 200, "Manual price entry saved", result);
 });
 
-// Let's define it properly
-const getCropsList = asyncHandler(async (req, res) => {
-    await seedSampleDataIfEmpty();
-    const crops = await MarketPrice.distinct("cropName", { isVerified: true });
-    sendSuccess(res, 200, "Tracked crops retrieved", crops);
+// @desc    Admin: trigger scraper run on-demand
+// @route   POST /api/market/scrape-now
+// @access  Private (Admin)
+const triggerScrape = asyncHandler(async (_req, res) => {
+    const { runOnce } = require("../jobs/marketPriceCron");
+    const result = await runOnce();
+    if (!result.ok) {
+        return sendError(res, 502, `Scraper failed: ${result.error}`);
+    }
+    sendSuccess(res, 200, "Scraper run completed", result);
 });
 
-// @desc    Get list of unique mandis/markets
-// @route   GET /api/market/mandis
-// @access  Public
-const getMandis = asyncHandler(async (req, res) => {
-    await seedSampleDataIfEmpty();
-    const mandis = await MarketPrice.distinct("market", { isVerified: true });
-    sendSuccess(res, 200, "Tracked markets/mandis retrieved", mandis);
+// @desc    Admin: get cron job status
+// @route   GET /api/market/cron-status
+// @access  Private (Admin)
+const getCronStatus = asyncHandler(async (_req, res) => {
+    const { getCronStatus } = require("../jobs/marketPriceCron");
+    sendSuccess(res, 200, "Cron status retrieved", getCronStatus());
 });
 
 // @desc    Verify a user-submitted price
@@ -299,7 +400,10 @@ module.exports = {
     getCropPriceHistory,
     getTrends,
     submitPrice,
-    getTrackedCrops: getCropsList, // mapping to our fixed function
+    getCropsList,
     getMandis,
-    verifyPrice
+    manualPriceEntry,
+    triggerScrape,
+    getCronStatus,
+    verifyPrice,
 };

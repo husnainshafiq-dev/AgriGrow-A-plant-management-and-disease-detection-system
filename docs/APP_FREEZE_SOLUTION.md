@@ -239,5 +239,22 @@ Updated [Dashboard.jsx](file:///d:/model/client/src/Dashboard.jsx) to include th
   * Delete a field (`DELETE /api/dashboard/fields/:id`)
   * Submit AI farm/crop analyses (`POST /api/dashboard/analyze/...`)
   * Upload a leaf image for scanning (`POST /api/dashboard/scan`)
-
 This resolves the login loop and guarantees that fields are properly scoped and stored under the correct user account.
+
+## False "Online" Status & True Internet Checking (July 2026)
+
+### Problem: App Claimed "Online" Even When Disconnected
+
+When testing the offline fallback mode by disconnecting from Wi-Fi (e.g., globe icon crossed out in the Windows Taskbar), the app still displayed the **"Online detection available"** badge. Because the frontend saw `isOnline` as `true` and successfully contacted the local backend (`localhost:5000`), the app continued to use the online service rather than switching to the offline browser model.
+
+This occurred because `navigator.onLine` (which React uses to detect internet connection) is notoriously unreliable. In Chrome/Windows, it often evaluates to `true` even when there is no internet access (e.g., if connected to a local router with no WAN, or if a virtual network adapter like WSL is active).
+
+### Fix Applied
+
+Updated `client/src/App.jsx` to implement a **True Internet Check** to bypass the `navigator.onLine` bug. 
+
+Instead of relying solely on the browser's built-in event listeners, the app now uses a `checkRealInternet` function that silently pings `https://www.google.com/favicon.ico` via a `no-cors` fetch. 
+
+- If the fetch succeeds, the app is truly online.
+- If the fetch fails, the app correctly sets `isOnline = false`, immediately hides the online status, and swaps the UI to show the **"Offline detector ready"** box.
+- The check runs on mount, whenever the `online` event fires, and periodically every 10 seconds to catch lying browsers.

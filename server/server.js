@@ -219,6 +219,12 @@ const startServer = async () => {
             logger.info(`   ML Service  : ${config.ML_SERVICE_URL}`);
             logger.info("═══════════════════════════════════════════════");
         });
+
+        // Start the market price cron job (daily AMIS scrape)
+        // Only kicks in once MongoDB is connected so the scraper
+        // can write to the collection without a race condition.
+        const { startMarketPriceCron } = require("./jobs/marketPriceCron");
+        startMarketPriceCron();
     } catch (error) {
         logger.error(`Failed to start server: ${error.message}`);
         process.exit(1);

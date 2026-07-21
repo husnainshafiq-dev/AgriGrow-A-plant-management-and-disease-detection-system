@@ -19,6 +19,7 @@ import Bookmarks from "./pages/Bookmarks";
 // Pre-existing views (refactored to fit routes easily)
 import Dashboard from "./Dashboard";
 import Community from "./Community";
+import AdminDashboard from "./pages/AdminDashboard";
 
 // Offline Support
 import { syncToServer } from "./offlineStorage";
@@ -48,7 +49,7 @@ export default function App() {
                     const data = await res.json();
                     if (data.status === "ready") {
                         if (!cancelled) {
-                            setLoadingStatus("AI model ready!");
+                            setLoadingStatus("Online detection available");
                             setModelReady(true);
                         }
                         return;
@@ -81,16 +82,34 @@ export default function App() {
     }, []);
     /* ── online / offline detection + sync ─────────────────────── */
     useEffect(() => {
-        const goOnline = () => {
-            setIsOnline(true);
-            syncToServer().catch(() => {});
+        const checkRealInternet = async () => {
+            if (!navigator.onLine) return false;
+            try {
+                await fetch("https://www.google.com/favicon.ico", { mode: 'no-cors', cache: 'no-store' });
+                return true;
+            } catch (e) {
+                return false;
+            }
         };
-        const goOffline = () => setIsOnline(false);
-        window.addEventListener("online", goOnline);
-        window.addEventListener("offline", goOffline);
+
+        const verifyOnline = async () => {
+            const reallyOnline = await checkRealInternet();
+            setIsOnline(reallyOnline);
+            if (reallyOnline) {
+                syncToServer().catch(() => {});
+            }
+        };
+
+        // Initial check and periodic polling to catch lying browsers
+        verifyOnline();
+        const interval = setInterval(verifyOnline, 10000);
+
+        window.addEventListener("online", verifyOnline);
+        window.addEventListener("offline", () => setIsOnline(false));
         return () => {
-            window.removeEventListener("online", goOnline);
-            window.removeEventListener("offline", goOffline);
+            clearInterval(interval);
+            window.removeEventListener("online", verifyOnline);
+            window.removeEventListener("offline", () => setIsOnline(false));
         };
     }, []);
 
@@ -189,6 +208,14 @@ export default function App() {
                         element={
                             <ProtectedRoute>
                                 <WeatherAlerts />
+                            </ProtectedRoute>
+                        } 
+                    />
+                    <Route 
+                        path="/admin" 
+                        element={
+                            <ProtectedRoute>
+                                <AdminDashboard />
                             </ProtectedRoute>
                         } 
                     />

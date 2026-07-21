@@ -157,6 +157,7 @@ export default function MarketPrices() {
         switch (u) {
             case "per_kg": return "/ kg";
             case "per_maund": return "/ maund (37.3 kg)";
+            case "per_100kg": return "/ 100 kg (govt)";
             default: return "/ 40 kg";
         }
     };

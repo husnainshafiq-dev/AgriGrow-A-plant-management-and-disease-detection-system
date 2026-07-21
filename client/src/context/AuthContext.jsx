@@ -2,6 +2,44 @@ import { createContext, useContext, useState, useEffect, useCallback } from "rea
 
 const AuthContext = createContext(null);
 
+/* ── Safe response parser ─────────────────────────
+ * `response.json()` throws "Unexpected end of JSON input" when the body
+ * is empty (e.g. backend down, proxy 504, or HTML error page).
+ * This helper returns a friendly error instead of letting that bubble up.
+ * ───────────────────────────────────────────────── */
+async function parseResponse(res, fallbackError) {
+    // No body at all — server didn't reply, or proxy returned empty
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+        if (res.status === 0 || !res.status) {
+            throw new Error("Cannot reach the server. Is the backend running on port 5000?");
+        }
+        if (res.status >= 500) {
+            throw new Error(`Server error (${res.status}). Please try again in a moment.`);
+        }
+        if (res.status === 404) {
+            throw new Error("API endpoint not found. Check the server URL.");
+        }
+        throw new Error(fallbackError);
+    }
+
+    // Body is JSON — read it as text first so empty bodies don't throw
+    const text = await res.text();
+    if (!text) {
+        if (res.status === 401 || res.status === 400) {
+            throw new Error(fallbackError);
+        }
+        throw new Error("Server returned an empty response. Please try again.");
+    }
+
+    try {
+        return JSON.parse(text);
+    } catch {
+        // JSON.parse failed — body said it was JSON but wasn't
+        throw new Error("Server returned an invalid response. Please try again.");
+    }
+}
+
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [token, setToken] = useState(() => localStorage.getItem("agrigrow_token"));
@@ -38,7 +76,7 @@ export function AuthProvider({ children }) {
                     credentials: "include",
                 });
                 if (res.ok) {
-                    const data = await res.json();
+                    const data = await parseResponse(res, "Session expired");
                     const user = data.data?.user || data.user || data.data || data;
                     setUser(user);
                     setToken(stored);
@@ -55,18 +93,24 @@ export function AuthProvider({ children }) {
 
     /* ── login ─────────────────────────────────────── */
     const login = useCallback(async (email, password) => {
-        const res = await fetch("/api/auth/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ email, password }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || data.message || "Login failed");
-        
+        let res;
+        try {
+            res = await fetch("/api/auth/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ email, password }),
+            });
+        } catch (networkErr) {
+            // fetch itself failed (server unreachable, CORS, offline, etc.)
+            throw new Error("Cannot reach the server. Is the backend running on port 5000?");
+        }
+        const data = await parseResponse(res, "Invalid email or password");
+        if (!res.ok) throw new Error(data.error || data.message || "Invalid email or password");
+
         const token = data.data?.token || data.token;
         const user = data.data?.user || data.user || data.data || data;
-        
+
         saveToken(token);
         setUser(user);
         return data;
@@ -74,18 +118,23 @@ export function AuthProvider({ children }) {
 
     /* ── register ──────────────────────────────────── */
     const register = useCallback(async (formData) => {
-        const res = await fetch("/api/auth/register", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify(formData),
-        });
-        const data = await res.json();
+        let res;
+        try {
+            res = await fetch("/api/auth/register", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(formData),
+            });
+        } catch (networkErr) {
+            throw new Error("Cannot reach the server. Is the backend running on port 5000?");
+        }
+        const data = await parseResponse(res, "Registration failed");
         if (!res.ok) throw new Error(data.error || data.message || "Registration failed");
-        
+
         const token = data.data?.token || data.token;
         const user = data.data?.user || data.user || data.data || data;
-        
+
         saveToken(token);
         setUser(user);
         return data;
@@ -105,15 +154,20 @@ export function AuthProvider({ children }) {
 
     /* ── update profile ────────────────────────────── */
     const updateProfile = useCallback(async (profileData) => {
-        const res = await fetch("/api/auth/profile", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json", ...authHeaders() },
-            credentials: "include",
-            body: JSON.stringify(profileData),
-        });
-        const data = await res.json();
+        let res;
+        try {
+            res = await fetch("/api/auth/profile", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", ...authHeaders() },
+                credentials: "include",
+                body: JSON.stringify(profileData),
+            });
+        } catch {
+            throw new Error("Cannot reach the server. Is the backend running on port 5000?");
+        }
+        const data = await parseResponse(res, "Update failed");
         if (!res.ok) throw new Error(data.error || data.message || "Update failed");
-        
+
         const user = data.data?.user || data.user || data.data || data;
         setUser(user);
         return data;
@@ -121,15 +175,20 @@ export function AuthProvider({ children }) {
 
     /* ── change password ───────────────────────────── */
     const changePassword = useCallback(async (currentPassword, newPassword, confirmNewPassword) => {
-        const res = await fetch("/api/auth/password", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json", ...authHeaders() },
-            credentials: "include",
-            body: JSON.stringify({ currentPassword, newPassword, confirmNewPassword }),
-        });
-        const data = await res.json();
+        let res;
+        try {
+            res = await fetch("/api/auth/password", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json", ...authHeaders() },
+                credentials: "include",
+                body: JSON.stringify({ currentPassword, newPassword, confirmNewPassword }),
+            });
+        } catch {
+            throw new Error("Cannot reach the server. Is the backend running on port 5000?");
+        }
+        const data = await parseResponse(res, "Password change failed");
         if (!res.ok) throw new Error(data.error || data.message || "Password change failed");
-        
+
         const token = data.data?.token || data.token;
         if (token) saveToken(token);
         return data;

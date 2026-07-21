@@ -61,6 +61,15 @@
     color: #10b981;
 }
 
+.nav-admin-link {
+    color: #ef4444 !important;
+    font-weight: 600 !important;
+}
+
+.nav-admin-link:hover {
+    color: #f87171 !important;
+}
+
 .nav-actions-desktop {
     display: flex;
     align-items: center;

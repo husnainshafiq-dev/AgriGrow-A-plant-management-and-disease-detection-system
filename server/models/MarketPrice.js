@@ -38,7 +38,10 @@ const marketPriceSchema = new mongoose.Schema(
             },
             unit: {
                 type: String,
-                enum: ["per_kg", "per_40kg", "per_maund"],
+                // "per_100kg" is the canonical AMIS (govt) unit for Punjab
+                // wholesale prices. Other units are kept for user reports
+                // and historical seeded data.
+                enum: ["per_kg", "per_40kg", "per_maund", "per_100kg"],
                 default: "per_40kg"
             }
         },
@@ -53,7 +56,7 @@ const marketPriceSchema = new mongoose.Schema(
         },
         source: {
             type: String,
-            enum: ["admin", "user-contributed"],
+            enum: ["admin", "user-contributed", "seed-data", "admin-manual", "amis-scraper", "offline-sync"],
             default: "user-contributed"
         },
         submittedBy: {

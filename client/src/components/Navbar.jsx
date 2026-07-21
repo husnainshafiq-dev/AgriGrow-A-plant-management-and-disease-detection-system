@@ -35,6 +35,9 @@ export default function Navbar({ modelReady, loadingStatus, isOnline, installPro
                     <Link to="/market">{t("nav.market")}</Link>
                     <Link to="/qa">{t("nav.qa")}</Link>
                     <Link to="/community">{t("nav.community")}</Link>
+                    {isAuthenticated && user?.role === "admin" && (
+                        <Link to="/admin" className="nav-admin-link">⚙️ Admin</Link>
+                    )}
                 </div>
 
                 <div className="nav-actions-desktop">
@@ -78,6 +81,9 @@ export default function Navbar({ modelReady, loadingStatus, isOnline, installPro
                                 <div className="profile-dropdown glass-panel">
                                     <Link to="/profile" onClick={() => setDropdownOpen(false)}>👤 {t("nav.profile")}</Link>
                                     <Link to="/bookmarks" onClick={() => setDropdownOpen(false)}>🔖 {t("nav.bookmarks")}</Link>
+                                    {user?.role === "admin" && (
+                                        <Link to="/admin" onClick={() => setDropdownOpen(false)}>⚙️ Admin Dashboard</Link>
+                                    )}
                                     <button onClick={handleLogoutClick} className="dropdown-logout-btn">
                                         🚪 {t("nav.logout")}
                                     </button>
@@ -114,6 +120,9 @@ export default function Navbar({ modelReady, loadingStatus, isOnline, installPro
                         <Link to="/market" onClick={() => setMobileMenuOpen(false)}>💰 {t("nav.market")}</Link>
                         <Link to="/qa" onClick={() => setMobileMenuOpen(false)}>💬 {t("nav.qa")}</Link>
                         <Link to="/community" onClick={() => setMobileMenuOpen(false)}>👥 {t("nav.community")}</Link>
+                        {isAuthenticated && user?.role === "admin" && (
+                            <Link to="/admin" onClick={() => setMobileMenuOpen(false)}>⚙️ Admin</Link>
+                        )}
                         
                         <div className="drawer-separator"></div>
 
