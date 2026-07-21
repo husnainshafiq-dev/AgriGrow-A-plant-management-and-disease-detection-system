@@ -1,0 +1,206 @@
+import { useState, useEffect } from "react";
+import { Routes, Route, useNavigate } from "react-router-dom";
+import { useAuth } from "./context/AuthContext";
+import Navbar from "./components/Navbar";
+import Footer from "./components/Footer";
+import ProtectedRoute from "./components/ProtectedRoute";
+
+// Page Components
+import Home from "./pages/Home";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import WeatherAlerts from "./pages/WeatherAlerts";
+import CropCalendar from "./pages/CropCalendar";
+import MarketPrices from "./pages/MarketPrices";
+import ExpertQA from "./pages/ExpertQA";
+import Profile from "./pages/Profile";
+import Bookmarks from "./pages/Bookmarks";
+
+// Pre-existing views (refactored to fit routes easily)
+import Dashboard from "./Dashboard";
+import Community from "./Community";
+
+// Offline Support
+import { syncToServer } from "./offlineStorage";
+import "./App.css";
+
+export default function App() {
+    const { isAuthenticated } = useAuth();
+    const navigate = useNavigate();
+    
+    // Global PWA and model health check states
+    const [modelReady, setModelReady] = useState(false);
+    const [loadingStatus, setLoadingStatus] = useState("Online detection available");
+    const [offlineModelReady, setOfflineModelReady] = useState(false);
+    const [installPrompt, setInstallPrompt] = useState(null);
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+    /* Check API health. The offline TensorFlow model loads only when the user needs offline detection. */
+    useEffect(() => {
+        let pollTimer;
+        let attempt = 0;
+        let cancelled = false;
+
+        async function poll() {
+            try {
+                const res = await fetch("/api/health");
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.status === "ready") {
+                        if (!cancelled) {
+                            setLoadingStatus("AI model ready!");
+                            setModelReady(true);
+                        }
+                        return;
+                    }
+
+                    if (!cancelled) {
+                        setLoadingStatus("Online detector unavailable; browser detection will be used.");
+                            setModelReady(false);
+                    }
+                }
+            } catch (err) {
+                if (!cancelled) {
+                    setLoadingStatus("Backend connection unavailable; browser detection will be used.");
+                    setModelReady(false);
+                }
+            }
+
+            attempt++;
+            if (cancelled || attempt > 15) return;
+            const delay = Math.min(2000 * Math.pow(1.5, attempt - 1), 30000);
+            pollTimer = setTimeout(poll, delay);
+        }
+
+        poll();
+
+        return () => {
+            cancelled = true;
+            clearTimeout(pollTimer);
+        };
+    }, []);
+    /* ── online / offline detection + sync ─────────────────────── */
+    useEffect(() => {
+        const goOnline = () => {
+            setIsOnline(true);
+            syncToServer().catch(() => {});
+        };
+        const goOffline = () => setIsOnline(false);
+        window.addEventListener("online", goOnline);
+        window.addEventListener("offline", goOffline);
+        return () => {
+            window.removeEventListener("online", goOnline);
+            window.removeEventListener("offline", goOffline);
+        };
+    }, []);
+
+    /* ── PWA install prompt ─────────────────────────────────────────────── */
+    useEffect(() => {
+        const handler = (e) => { e.preventDefault(); setInstallPrompt(e); };
+        window.addEventListener("beforeinstallprompt", handler);
+        return () => window.removeEventListener("beforeinstallprompt", handler);
+    }, []);
+
+    const handleInstall = async () => {
+        if (!installPrompt) return;
+        installPrompt.prompt();
+        await installPrompt.userChoice;
+        setInstallPrompt(null);
+    };
+
+    return (
+        <div className="landing-page">
+            <Navbar
+                modelReady={modelReady}
+                loadingStatus={loadingStatus}
+                isOnline={isOnline}
+                installPrompt={installPrompt}
+                handleInstall={handleInstall}
+            />
+
+            <div className="bg-blobs">
+                <div className="blob blob-1"></div>
+                <div className="blob blob-2"></div>
+                <div className="blob blob-3"></div>
+            </div>
+
+            <div className="main-content-area" style={{ flex: 1, position: "relative", zIndex: 10 }}>
+                <Routes>
+                    <Route 
+                        path="/" 
+                        element={
+                            <Home 
+                                modelReady={modelReady} 
+                                loadingStatus={loadingStatus} 
+                                isOnline={isOnline}
+                                onOfflineModelReady={setOfflineModelReady}
+                            />
+                        } 
+                    />
+                    <Route 
+                        path="/detect" 
+                        element={
+                            <Home 
+                                modelReady={modelReady} 
+                                loadingStatus={loadingStatus} 
+                                isOnline={isOnline}
+                                onOfflineModelReady={setOfflineModelReady}
+                            />
+                        } 
+                    />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/register" element={<Register />} />
+                    
+                    {/* Protected routing endpoints */}
+                    <Route 
+                        path="/dashboard" 
+                        element={
+                            <ProtectedRoute>
+                                <Dashboard onBack={() => navigate("/")} />
+                            </ProtectedRoute>
+                        } 
+                    />
+                    <Route 
+                        path="/calendar" 
+                        element={
+                            <ProtectedRoute>
+                                <CropCalendar />
+                            </ProtectedRoute>
+                        } 
+                    />
+                    <Route 
+                        path="/profile" 
+                        element={
+                            <ProtectedRoute>
+                                <Profile />
+                            </ProtectedRoute>
+                        } 
+                    />
+                    <Route 
+                        path="/bookmarks" 
+                        element={
+                            <ProtectedRoute>
+                                <Bookmarks />
+                            </ProtectedRoute>
+                        } 
+                    />
+                    <Route 
+                        path="/alerts" 
+                        element={
+                            <ProtectedRoute>
+                                <WeatherAlerts />
+                            </ProtectedRoute>
+                        } 
+                    />
+
+                    {/* Publicly accessible route views */}
+                    <Route path="/market" element={<MarketPrices />} />
+                    <Route path="/qa" element={<ExpertQA />} />
+                    <Route path="/community" element={<Community onBack={() => navigate("/")} />} />
+                </Routes>
+            </div>
+
+            <Footer isOnline={isOnline} isModelLoaded={offlineModelReady} />
+        </div>
+    );
+}

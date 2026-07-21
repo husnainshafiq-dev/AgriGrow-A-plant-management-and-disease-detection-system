@@ -1,0 +1,347 @@
+.calendar-page {
+    min-height: 85vh;
+    padding: 40px 20px;
+    position: relative;
+    overflow: hidden;
+}
+
+.calendar-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    z-index: 2;
+    position: relative;
+}
+
+.calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.calendar-header h2 {
+    font-size: 28px;
+    font-weight: 700;
+    color: #f8fafc;
+    font-family: 'Outfit', sans-serif;
+}
+
+.add-event-btn {
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 12px;
+}
+
+.calendar-main-grid {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 24px;
+}
+
+@media (max-width: 900px) {
+    .calendar-main-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.filters-card {
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.filters-card h4 {
+    margin-bottom: 12px;
+    font-size: 14px;
+    color: #94a3b8;
+}
+
+.filter-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.filter-buttons button {
+    padding: 6px 12px;
+    font-size: 13px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    color: #cbd5e1;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
+}
+
+.filter-buttons button:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.filter-buttons button.active {
+    background: #10b981;
+    color: #030712;
+    border-color: #10b981;
+    font-weight: 600;
+}
+
+.events-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.event-card {
+    display: flex;
+    align-items: flex-start;
+    padding: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    gap: 16px;
+    transition: transform 0.2s;
+}
+
+.event-card:hover {
+    transform: translateY(-1px);
+    background: rgba(15, 23, 42, 0.5);
+}
+
+.event-card.completed {
+    opacity: 0.65;
+}
+
+.event-check input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    accent-color: #10b981;
+    cursor: pointer;
+}
+
+.event-info {
+    flex: 1;
+}
+
+.event-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.event-type-badge {
+    font-size: 11px;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.1);
+    padding: 3px 8px;
+    border-radius: 6px;
+}
+
+.event-date {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.event-title {
+    font-size: 16.5px;
+    font-weight: 600;
+    color: #f8fafc;
+    margin-bottom: 4px;
+}
+
+.event-card.completed .event-title {
+    text-decoration: line-through;
+    color: #64748b;
+}
+
+.event-crop {
+    font-size: 13px;
+    color: #0ea5e9;
+    margin-bottom: 6px;
+}
+
+.event-desc {
+    font-size: 13.5px;
+    color: #94a3b8;
+    line-height: 1.5;
+    margin-bottom: 8px;
+}
+
+.event-field-badge {
+    display: inline-block;
+    font-size: 11px;
+    color: #e2e8f0;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 3px 8px;
+    border-radius: 6px;
+}
+
+.event-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.event-actions button {
+    background: none;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.event-actions button:hover {
+    opacity: 1;
+}
+
+/* AI Generator Card styles */
+.ai-generator-card {
+    padding: 24px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ai-card-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #f8fafc;
+    margin-bottom: 8px;
+    font-family: 'Outfit', sans-serif;
+}
+
+.ai-card-subtitle {
+    font-size: 13px;
+    color: #94a3b8;
+    line-height: 1.5;
+    margin-bottom: 20px;
+}
+
+.ai-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.ai-form .form-group input,
+.ai-form .form-group select {
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #f8fafc;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+}
+
+.ai-form .form-group input:focus,
+.ai-form .form-group select:focus {
+    border-color: #10b981;
+}
+
+.ai-submit-btn {
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 10px;
+}
+
+.ai-status-msg {
+    background: rgba(14, 165, 233, 0.1);
+    border: 1px solid rgba(14, 165, 233, 0.2);
+    border-radius: 10px;
+    padding: 12px;
+    color: #38bdf8;
+    font-size: 13px;
+    margin-bottom: 20px;
+    line-height: 1.4;
+}
+
+.ai-suggestions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 16px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.ai-suggestions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.ai-suggestions-header h4 {
+    font-size: 14px;
+    color: #f8fafc;
+}
+
+.add-all-btn {
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    color: #10b981;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.suggestion-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    padding: 10px 12px;
+    border-radius: 8px;
+    gap: 10px;
+}
+
+.sugg-left h5 {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #f8fafc;
+    margin-bottom: 2px;
+}
+
+.sugg-left span {
+    font-size: 11px;
+    color: #eab308;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.sugg-left p {
+    font-size: 12px;
+    color: #94a3b8;
+    line-height: 1.4;
+}
+
+.add-sugg-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background: #10b981;
+    color: #030712;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s;
+}
+
+.add-sugg-btn:hover {
+    transform: scale(1.1);
+}

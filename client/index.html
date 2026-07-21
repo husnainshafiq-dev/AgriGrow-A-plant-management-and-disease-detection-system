@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>AgriGrow — AI Plant Disease Diagnosis</title>
+    <meta name="description"
+        content="Upload a plant leaf photo and get an instant AI-powered disease diagnosis with treatment recommendations." />
+    <meta name="theme-color" content="#030712" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap"
+        rel="stylesheet" />
+    <script>
+        (function clearLocalDevPwaState() {
+            var isLocalhost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+            if (!isLocalhost) return;
+
+            if ("serviceWorker" in navigator) {
+                navigator.serviceWorker.getRegistrations()
+                    .then(function (registrations) {
+                        registrations.forEach(function (registration) {
+                            registration.unregister();
+                        });
+                    })
+                    .catch(function () {});
+            }
+
+            if ("caches" in window) {
+                caches.keys()
+                    .then(function (keys) {
+                        return Promise.all(keys.map(function (key) {
+                            return caches.delete(key);
+                        }));
+                    })
+                    .catch(function () {});
+            }
+        })();
+    </script>
+</head>
+
+<body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+</body>
+
+</html>

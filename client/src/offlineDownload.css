@@ -1,0 +1,232 @@
+.offline-download-card {
+    position: relative;
+    max-width: 760px;
+    margin: 0 auto 24px;
+    padding: 22px;
+    border: 1px solid rgba(52, 211, 153, 0.24);
+    border-radius: 20px;
+    background:
+        radial-gradient(circle at 0 0, rgba(52, 211, 153, 0.12), transparent 40%),
+        linear-gradient(135deg, rgba(13, 40, 34, 0.94), rgba(8, 20, 28, 0.94));
+    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24);
+    display: grid;
+    grid-template-columns: 52px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 18px;
+    overflow: hidden;
+}
+
+.offline-download-card::after {
+    content: "";
+    position: absolute;
+    right: -45px;
+    top: -65px;
+    width: 170px;
+    height: 170px;
+    border-radius: 50%;
+    background: rgba(56, 189, 248, 0.07);
+    pointer-events: none;
+}
+
+.offline-download-icon {
+    width: 52px;
+    height: 52px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(52, 211, 153, 0.28);
+    border-radius: 16px;
+    color: #6ee7b7;
+    background: rgba(52, 211, 153, 0.1);
+}
+
+.offline-download-icon svg {
+    width: 25px;
+    height: 25px;
+}
+
+.offline-download-copy {
+    min-width: 0;
+}
+
+.offline-download-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 5px;
+    color: #6ee7b7;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.offline-download-size {
+    padding: 2px 7px;
+    border-radius: 999px;
+    color: #bae6fd;
+    background: rgba(56, 189, 248, 0.1);
+    letter-spacing: 0.04em;
+}
+
+.offline-download-copy h3 {
+    margin: 0;
+    color: #f0fdf4;
+    font-size: 1.08rem;
+}
+
+.offline-download-copy > p {
+    max-width: 440px;
+    margin: 7px 0 0;
+    color: var(--text-dim);
+    font-size: 0.86rem;
+    line-height: 1.5;
+}
+
+.offline-download-benefits {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin-top: 10px;
+    color: #a7f3d0;
+    font-size: 0.75rem;
+}
+
+.offline-download-btn {
+    position: relative;
+    z-index: 1;
+    width: auto !important;
+    min-width: 166px;
+    padding: 12px 16px !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.offline-download-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
+.offline-download-action {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 7px;
+}
+
+.offline-download-action small {
+    color: rgba(203, 213, 225, 0.65);
+    font-size: 0.67rem;
+}
+
+.offline-progress {
+    max-width: 440px;
+    margin-top: 12px;
+}
+
+.offline-progress-label {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    color: #d1fae5;
+    font-size: 0.72rem;
+}
+
+.offline-progress-track {
+    height: 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.09);
+}
+
+.offline-progress-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #34d399, #38bdf8);
+    box-shadow: 0 0 12px rgba(52, 211, 153, 0.45);
+    transition: width 0.25s ease;
+}
+
+.offline-ready-note {
+    width: fit-content;
+    margin: 0 auto 22px;
+    padding: 9px 14px 9px 9px;
+    border: 1px solid rgba(52, 211, 153, 0.22);
+    border-radius: 999px;
+    color: #d1fae5;
+    background: rgba(6, 78, 59, 0.22);
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.offline-ready-check {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: #052e26;
+    background: #6ee7b7;
+    font-weight: 900;
+}
+
+.offline-ready-note > span:last-child {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+}
+
+.offline-ready-note strong {
+    font-size: 0.78rem;
+}
+
+.offline-ready-note small {
+    margin-top: 2px;
+    color: rgba(209, 250, 229, 0.68);
+    font-size: 0.64rem;
+}
+
+@media (max-width: 720px) {
+    .offline-download-card {
+        grid-template-columns: 44px minmax(0, 1fr);
+        padding: 18px;
+    }
+
+    .offline-download-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 13px;
+    }
+
+    .offline-download-action {
+        grid-column: 1 / -1;
+        align-items: stretch;
+    }
+
+    .offline-download-btn {
+        width: 100% !important;
+    }
+
+    .offline-download-action small {
+        text-align: center;
+    }
+}
+
+@media (max-width: 420px) {
+    .offline-download-card {
+        grid-template-columns: 1fr;
+    }
+
+    .offline-download-icon {
+        display: none;
+    }
+
+    .offline-download-action {
+        grid-column: auto;
+    }
+}

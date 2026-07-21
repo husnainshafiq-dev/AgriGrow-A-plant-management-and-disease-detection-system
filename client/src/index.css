@@ -1,0 +1,90 @@
+/* ===== Global reset & design tokens ===== */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap');
+
+*,
+*::before,
+*::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --bg: #030712;
+    --surface: rgba(15, 23, 42, 0.45);
+    --surface-solid: #0f172a;
+    --border: rgba(255, 255, 255, 0.08);
+    --border-hover: rgba(16, 185, 129, 0.4);
+    --text: #f8fafc;
+    --text-dim: #94a3b8;
+    --accent: #10b981;
+    --accent-light: #34d399;
+    --accent-dark: #059669;
+    --accent-glow: rgba(16, 185, 129, 0.3);
+    --primary: #0ea5e9;
+    --danger: #ef4444;
+    --danger-bg: rgba(239, 68, 68, 0.1);
+    --healthy: #10b981;
+    --healthy-bg: rgba(16, 185, 129, 0.1);
+    --radius-sm: 10px;
+    --radius: 20px;
+    --radius-lg: 32px;
+    --font-heading: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+    --shadow-glow: 0 0 40px rgba(16, 185, 129, 0.15);
+    --transition: 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html {
+    font-size: 16px;
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+}
+
+#root {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+/* Utilities */
+.glass-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    /* Backdrop filters caused UI stalls on some machines when many panels were visible. */
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: var(--shadow);
+}
+
+/* RTL Support */
+[dir="rtl"] {
+    text-align: right;
+}
+
+[dir="rtl"] .logo {
+    flex-direction: row-reverse;
+}
+
+body.rtl {
+    font-family: 'Noto Nastaliq Urdu', 'Outfit', var(--font-body);
+}
+
+body.rtl h1, body.rtl h2, body.rtl h3, body.rtl h4, body.rtl h5, body.rtl h6 {
+    font-family: 'Noto Nastaliq Urdu', 'Outfit', var(--font-heading);
+}

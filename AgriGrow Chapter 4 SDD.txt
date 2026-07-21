@@ -1,0 +1,559 @@
+
+
+
+
+Chapter 4
+
+
+
+Software Design
+
+
+
+4.1 Introduction to Software Design
+
+
+This chapter presents the detailed software design of the AgriGrow system. It translates the requirements identified in Chapter 3 into structured architectural, behavioral, and data models. The purpose of this chapter is to provide a clear blueprint for system implementation, ensuring maintainability, scalability, and modular development. This chapter includes architectural design, UML models, data flow models, and database design specifically tailored for a machine learning-embedded Progressive Web Application (PWA).
+
+
+
+4.2 Design Methodology and Software Process Model
+
+
+
+4.2.1 Design Methodology
+
+
+The AgriGrow project follows a Layered Architecture combined with the Model-View-Controller (MVC) design pattern for its backend, alongside a Data-Centric Edge AI approach for its frontend inference.
+
+
+Justification: A layered MVC approach perfectly suits the MERN stack (MongoDB, Express.js, React.js, Node.js), cleanly separating the user interface (React PWA) from business logic and data routing (Node/Express). The Edge AI approach is crucial because running TensorFlow.js models directly within the React layer enables the strictly required offline functionality.
+
+
+Design Principles: The design strictly adheres to the Separation of Concerns (SoC) and DRY (Don't Repeat Yourself) principles, ensuring that AI inference logic is decoupled from standard API communications.
+
+
+
+4.2.2 Software Process Model
+
+
+The project follows the Agile Scrum model.
+
+
+Justification: Developing an AI-powered web application involves continuous refinement of machine learning models and user interfaces. Agile allows for high adaptability.
+
+
+Iteration Cycles: Development is divided into 2-week sprints. Early sprints focus on PWA shell development and model training (using Python/TensorFlow-Keras), while later sprints focus on integrating TensorFlow.js for in-browser offline inference and Leaflet.js for geospatial mapping.
+
+
+Testing Integration: Each sprint concludes with unit testing of the specific module (e.g., testing the AI confidence threshold or offline caching mechanisms) before integrating it into the master branch.
+
+
+
+4.3 System Overview
+
+
+The AgriGrow system serves as a bridge between local farmers and advanced agricultural data. The system boundary encapsulates the React-based PWA (running on the user's mobile device), the Node.js backend server, and the MongoDB cloud database. External actors include the Farmers (end-users), Administrators, and the Google Maps API (used for geospatial area calculations).
+
+
+
+
+
+
+4.4 Architectural Design
+
+
+AgriGrow employs a modern 3-tier architecture with an added Edge Computing layer.
+
+
+Presentation Layer (Client): A React.js Progressive Web App utilizing Service Workers for offline caching of application shell and AI model weights. UI is currently English-only.
+
+
+Edge Inference Layer (Client-Side AI): Primary inference runs server-side via a persistent Python/TensorFlow process. A TensorFlow.js fallback is configured for offline use in the browser. The MobileNetV2 model supports 28 disease classes covering wheat, rice, corn, pepper, potato, and tomato crops.
+
+
+Business Logic Layer (Server): An Express.js/Node.js API that manages user authentication, synchronizes offline data, and proxies requests to the Agri-LLM.
+
+
+Data Layer (Database): MongoDB for scalable NoSQL data storage.
+
+
+
+
+
+
+4.5 Design Models
+
+
+
+4.5.1 Activity Diagrams
+
+
+4.5.1.1 Module 1: User Management
+
+
+This diagram illustrates the user registration, login, and dynamic language localization processes.
+
+
+
+
+
+4.5.1.2 Module 2: Core Functional Module (AI Crop Doctor)
+
+
+This diagram illustrates the offline image capture and prediction workflow.
+
+
+
+
+
+
+
+
+
+
+4.5.2 Class Diagram
+
+
+The class diagram shows the static structure of the MERN backend and the React frontend controllers.
+
+
+
+
+
+
+4.5.3 Sequence Diagrams
+
+
+4.5.3.1 Sequence Diagram - User Login
+
+
+This sequence describes: User enters credentials -> React Frontend sends POST request -> Express API validates -> MongoDB confirms -> API returns JWT Token -> React grants access.
+
+
+
+
+
+4.5.3.2 Sequence Diagram - Core Operation (Offline Crop Diagnosis)
+
+
+This sequence describes the offline edge-AI flow: Farmer captures image -> React UI passes image to TF.js Engine -> TF.js runs MobileNetV2 locally -> Result returned to UI -> Data saved to local IndexedDB -> PWA syncs to MongoDB when internet is restored.
+
+
+
+
+
+
+4.5.4 State Transition Diagrams
+
+
+This diagram shows the connectivity states of the PWA application.
+
+
+
+
+
+
+4.6 Data Flow Diagrams
+
+
+
+4.6.1 Level 1 Data Flow Diagram
+
+
+The Level 1 DFD decomposes the main system into major sub-processes: Authentication, AI Diagnosis, Yield Estimation, Farm Management, Cost Estimation, and Advisory.
+
+
+
+
+
+
+4.6.2 Level 2 Data Flow Diagram
+
+
+This Level 2 DFD further decomposes the AI Crop Doctor module: 1. Receive Image -> 2. Preprocess Image Data -> 3. Execute ML Model (server-side TensorFlow or browser-side TF.js) -> 4. Generate Confidence Score -> 5. Retrieve Treatment Text (English) and optionally fetch Gemini AI Advisory.
+
+
+
+
+
+
+
+4.7 Data Design
+
+
+
+4.7.1 Entity Relationship Diagram (ERD)
+
+
+The ERD represents the logical NoSQL document structure of the system, mimicking relational mapping for clarity.
+
+
+
+
+
+
+4.7.2 Database Architecture
+
+
+AgriGrow utilizes a Client-Server architecture with a Cloud NoSQL Database.
+
+
+Local Storage: The PWA uses IndexedDB and Cache API to store TF.js model weights, offline diagnostic logs, and localization JSON files.
+
+
+Cloud Storage: MongoDB Atlas is used as the primary cloud database, allowing flexible schema design which is ideal for storing unstructured agricultural queries and variable community post data.
+
+
+
+4.8 Database Schema Diagram
+
+
+The Database Schema Diagram represents the physical MongoDB implementation structure, identifying collections and document fields.
+
+
+
+
+
+Explanation:
+
+
+The database schema supports data integrity through strict Mongoose validation rules. Efficient querying is achieved by indexing frequently accessed fields, such as user IDs and timestamps in the diagnostic logs. Furthermore, the NoSQL document structure inherently supports horizontal scalability, allowing the system to seamlessly handle growing volumes of community posts and offline-synced diagnostic records without structural bottlenecks.
+
+
+
+4.8.1 Data Dictionary
+
+
+Table 4.1: Data Dictionary - User Collection
+
+
+Field Name
+
+
+Type
+
+
+Size
+
+
+Description
+
+
+_id
+
+
+ObjectId
+
+
+12 bytes
+
+
+Unique identifier for each user
+
+
+phone_number
+
+
+String
+
+
+15
+
+
+Registered mobile number
+
+
+password_hash
+
+
+String
+
+
+255
+
+
+Encrypted password (bcrypt)
+
+
+pref_language
+
+
+String
+
+
+20
+
+
+User's chosen UI language
+
+
+role
+
+
+String
+
+
+20
+
+
+Defines access level (Farmer/Admin)
+
+
+
+4.9 Database Tables / Collections
+
+
+
+4.9.1 User Collection
+
+
+The User collection stores authentication credentials and localized profile information.
+
+
+Table 4.2: User Collection Structure
+
+
+Field Name
+
+
+Data Type
+
+
+Constraint
+
+
+Description
+
+
+_id
+
+
+ObjectId
+
+
+Primary Key
+
+
+Unique identifier
+
+
+full_name
+
+
+String
+
+
+Not Null
+
+
+Stores user's full name
+
+
+phone_number
+
+
+String
+
+
+Unique, Not Null
+
+
+User login identifier
+
+
+password_hash
+
+
+String
+
+
+Not Null
+
+
+Encrypted password
+
+
+pref_language
+
+
+String
+
+
+Default 'Urdu'
+
+
+Selected localization language
+
+
+created_at
+
+
+Date
+
+
+Default Current
+
+
+Account creation timestamp
+
+
+
+Note: The implemented User model uses 'email' (String, unique) as the primary login identifier instead of phone_number. The field is named 'name' (not full_name). The 'password' field is hashed via a bcrypt pre-save hook. No pref_language field is currently implemented.
+
+
+
+4.9.2 Core Data Collection (Diagnostic Logs)
+
+
+This collection stores the operational data processed by the offline AI Crop Doctor once the device synchronizes with the internet.
+
+
+Table 4.3: Diagnostic Logs Collection Structure
+
+
+Field Name
+
+
+Data Type
+
+
+Constraint
+
+
+Description
+
+
+_id
+
+
+ObjectId
+
+
+Primary Key
+
+
+Unique log identifier
+
+
+user_id
+
+
+ObjectId
+
+
+Foreign Key
+
+
+References User Collection
+
+
+crop (ObjectId, FK to Crop collection, optional) — Reference to associated crop
+
+
+Type of crop scanned
+
+
+Note: The implemented Disease model stores the prediction in a sub-document: prediction.disease (String), prediction.confidence (Number), prediction.isHealthy (Boolean). It also includes topPredictions array, aiAdvisory (Gemini-generated text), treatment tracking fields (treatmentApplied, treatmentDate, resolved), and userFeedback sub-document.
+
+
+disease_detected
+
+
+String
+
+
+Not Null
+
+
+AI predicted disease name
+
+
+confidence_score
+
+
+Number
+
+
+Min 0, Max 100
+
+
+Prediction probability
+
+
+is_offline_scan
+
+
+Boolean
+
+
+Default False
+
+
+Flags if scanned without internet
+
+
+timestamp
+
+
+Date
+
+
+Default Current
+
+
+Time of scan
+
+
+
+4.9.3 Relationships Between Tables
+
+
+One-to-Many (1:N): One User (Farmer) can generate multiple Diagnostic Logs and multiple Yield Estimates over time.
+
+
+One-to-Many (1:N): One User can generate multiple Advisory records and Cost Estimations.
+
+
+
+4.9.4 Security and Data Integrity
+
+
+To ensure confidentiality and integrity, the following measures are implemented:
+
+
+Password encryption using bcrypt before storing in MongoDB.
+
+
+Role-Based Access Control (RBAC) enforced via JWT (JSON Web Tokens) to secure backend API routes.
+
+
+Mongoose schema validations to prevent malformed data injection.
+
+
+Offline data integrity is maintained using unique UUIDs generated on the client-side before cloud synchronization to prevent duplicate log entries.
+
+
+
+4.9.5 Scalability Considerations
+
+
+The database design incorporates NoSQL scalability mechanisms:
+
+
+Horizontal Scaling: MongoDB supports replica sets and sharding to distribute database load.
+
+
+Indexing: Indexes are applied to user_id and timestamp fields in the Diagnostic Logs and Community collections to accelerate read queries.
+
+
+Edge Offloading: By performing the heavy image processing inference on the client's device via TensorFlow.js, backend server processing load is massively reduced, inherently scaling the system to thousands of concurrent users.
+
+
+
+4.10 Chapter Summary
+
+
+This chapter presented the comprehensive software design of the AgriGrow system. It translated the functional requirements into a structured Layered MVC architecture, uniquely integrating an Edge Computing layer to satisfy the offline AI processing mandate. The Agile design methodology was justified to accommodate iterative machine learning integration. Detailed UML models—including activity, class, sequence, and state diagrams—were documented to map out local inference, user management, and synchronization behaviors. Furthermore, data flow diagrams and the MongoDB NoSQL database design were detailed through ERDs and data dictionaries, establishing a secure, scalable, and highly available technical blueprint ready for the implementation phase. The primary ML inference is handled server-side via a persistent Python/TensorFlow process, with a TensorFlow.js browser-based fallback for offline scenarios. Geospatial features use Leaflet.js with OpenStreetMap rather than Google Maps API.
+
+

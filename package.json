@@ -1,0 +1,23 @@
+{
+  "name": "agrigrow-farm-management",
+  "version": "1.0.0",
+  "private": true,
+  "description": "🌾 AgriGrow — AI-powered Farm Management Web App (MERN Stack)",
+  "scripts": {
+    "dev": "concurrently -n server,client -c green,cyan \"npm run server\" \"npm run client\"",
+    "dev:full": "concurrently -n ml,server,client -c magenta,green,cyan \"cd ml-service && python -m uvicorn app:app --host 0.0.0.0 --port 8000 --reload\" \"npm run server\" \"npm run client\"",
+    "ml": "cd ml-service && python -m uvicorn app:app --host 0.0.0.0 --port 8000 --reload",
+    "server": "cd server && npm run dev",
+    "client": "cd client && npm run dev",
+    "install-all": "npm install && cd server && npm install && cd ../client && npm install",
+    "build": "cd client && npm run build",
+    "start": "cd server && npm start",
+    "seed": "cd server && node ../scripts/seed-db.js"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

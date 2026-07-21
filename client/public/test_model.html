@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head><title>TF.js Model Test</title></head>
+<body>
+<h1>TF.js Model Loading Test</h1>
+<pre id="log"></pre>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+<script>
+const log = (msg) => {
+    document.getElementById('log').textContent += msg + '\n';
+    console.log(msg);
+};
+
+(async () => {
+    try {
+        log('1. TF.js version: ' + tf.version.tfjs);
+        await tf.ready();
+        log('2. TF.js backend: ' + tf.getBackend());
+        
+        log('3. Fetching /model/model.json...');
+        const res = await fetch('/model/model.json');
+        log('   Status: ' + res.status + ' ' + res.statusText);
+        const json = await res.json();
+        log('   Keys: ' + Object.keys(json).join(', '));
+        log('   weightsManifest paths: ' + JSON.stringify(json.weightsManifest?.[0]?.paths));
+        log('   weights count: ' + json.weightsManifest?.[0]?.weights?.length);
+        
+        log('4. Loading model via tf.loadLayersModel...');
+        const model = await tf.loadLayersModel('/model/model.json');
+        log('5. SUCCESS! Model loaded.');
+        log('   Input shape: ' + JSON.stringify(model.inputs[0].shape));
+        log('   Output shape: ' + JSON.stringify(model.outputs[0].shape));
+        
+        log('6. Testing prediction with random data...');
+        const dummy = tf.randomNormal([1, 224, 224, 3]);
+        const pred = model.predict(dummy);
+        const data = await pred.data();
+        log('   Output length: ' + data.length);
+        log('   Top value: ' + Math.max(...data).toFixed(4));
+        dummy.dispose();
+        pred.dispose();
+        log('7. ALL TESTS PASSED!');
+    } catch (err) {
+        log('ERROR: ' + err.message);
+        log('Stack: ' + err.stack);
+    }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1556 @@
+/* ==============================================================
+   🗺️ Precision Agriculture Dashboard
+   ==============================================================
+   
+   Split-screen dashboard with:
+   LEFT:  Interactive Leaflet map with satellite imagery,
+          polygon drawing, area calculation
+   RIGHT: Control panel with weather, AI analysis,
+          disease scan, and saved fields
+
+   ARCHITECTURE:
+   ┌──────────────────────────────────────────────────────────┐
+   │                    Dashboard                             │
+   │  ┌─────────────────────┐  ┌──────────────────────────┐  │
+   │  │  Interactive Map     │  │   Control Panel          │  │
+   │  │  • Esri Satellite   │  │  ┌────────────────────┐  │  │
+   │  │  • Polygon Draw     │  │  │ Field Info Card     │  │  │
+   │  │  • Area Calc        │  │  ├────────────────────┤  │  │
+   │  │  • Saved Fields     │  │  │ Weather Card        │  │  │
+   │  │  • Markers          │  │  ├────────────────────┤  │  │
+   │  │                     │  │  │ AI Analysis Card    │  │  │
+   │  │                     │  │  ├────────────────────┤  │  │
+   │  │                     │  │  │ Disease Scanner     │  │  │
+   │  │                     │  │  ├────────────────────┤  │  │
+   │  │                     │  │  │ Saved Fields List   │  │  │
+   │  └─────────────────────┘  │  └────────────────────┘  │  │
+   │                            └──────────────────────────┘  │
+   └──────────────────────────────────────────────────────────┘
+
+   GEOSPATIAL MATH:
+     • Area: Spherical excess formula (shoelface on sphere)
+     • Centroid: Arithmetic mean of polygon vertices
+     • @turf/turf equivalent — implemented in pure JS
+   
+   ============================================================== */
+
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useAuth } from "./context/AuthContext";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import "./Dashboard.css";
+
+/* ── Constants ────────────────────────────────────────────── */
+
+const API_BASE = "/api/dashboard";
+
+// Map defaults (Pakistan / South Asia focus)
+const DEFAULT_CENTER = [30.3753, 69.3451]; // Pakistan center
+const DEFAULT_ZOOM = 5;
+const FIELD_ZOOM = 16;
+
+// Leaflet CDN
+const LEAFLET_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+const LEAFLET_JS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+
+// Tile layers
+const TILES = {
+    satellite: {
+        url: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
+        attr: "&copy; Google Maps",
+        maxNativeZoom: 20,
+    },
+    street: {
+        url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        attr: '&copy; <a href="https://openstreetmap.org">OpenStreetMap</a>',
+        maxNativeZoom: 19,
+    },
+    topo: {
+        url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+        attr: '&copy; OpenTopoMap',
+        maxNativeZoom: 17,
+    },
+};
+
+// Field colors for multiple saved fields
+const FIELD_COLORS = [
+    "#10B981", "#3B82F6", "#F59E0B", "#EF4444",
+    "#8B5CF6", "#EC4899", "#14B8A6", "#F97316",
+];
+
+// Weather icon mapping
+const WEATHER_ICONS = {
+    Clear: "☀️", Clouds: "☁️", Rain: "🌧️", Drizzle: "🌦️",
+    Thunderstorm: "⛈️", Snow: "❄️", Mist: "🌫️", Fog: "🌫️",
+    Haze: "🌫️", Dust: "💨", Smoke: "💨",
+};
+
+/* ── Geospatial Math ─────────────────────────────────────── */
+
+const EARTH_RADIUS = 6371000;
+const toRad = (d) => (d * Math.PI) / 180;
+
+/**
+ * Calculate polygon area using Spherical Excess Formula.
+ * 
+ * MATH:
+ *   For each edge (i → j) of the polygon:
+ *     ΔA = (λ₂ - λ₁) × (2 + sin(φ₁) + sin(φ₂))
+ *   Total area = |Σ ΔA| × R² / 2
+ * 
+ * This is equivalent to @turf/area for small polygons.
+ */
+function calcArea(latlngs, unit = "acres") {
+    if (!latlngs || latlngs.length < 3) return 0;
+
+    let area = 0;
+    for (let i = 0; i < latlngs.length; i++) {
+        const j = (i + 1) % latlngs.length;
+        const lng1 = toRad(latlngs[i].lng);
+        const lat1 = toRad(latlngs[i].lat);
+        const lng2 = toRad(latlngs[j].lng);
+        const lat2 = toRad(latlngs[j].lat);
+        area += (lng2 - lng1) * (2 + Math.sin(lat1) + Math.sin(lat2));
+    }
+
+    const sqm = Math.abs(area) * EARTH_RADIUS * EARTH_RADIUS / 2;
+
+    switch (unit) {
+        case "hectares": return Math.round((sqm / 10000) * 10000) / 10000;
+        case "sqft": return Math.round(sqm / 0.09290304);
+        default: return Math.round((sqm / 4046.8564224) * 10000) / 10000;
+    }
+}
+
+/**
+ * Calculate centroid (arithmetic mean of vertices).
+ * Equivalent to @turf/centroid for small polygons.
+ */
+function calcCentroid(latlngs) {
+    if (!latlngs || latlngs.length === 0) return { lat: 0, lng: 0 };
+    let sumLat = 0, sumLng = 0;
+    for (const p of latlngs) {
+        sumLat += p.lat;
+        sumLng += p.lng;
+    }
+    return {
+        lat: sumLat / latlngs.length,
+        lng: sumLng / latlngs.length,
+    };
+}
+
+/** Convert Leaflet LatLng[] → GeoJSON polygon coordinates */
+function toGeoJSON(latlngs) {
+    const ring = latlngs.map((ll) => [ll.lng, ll.lat]);
+    ring.push([latlngs[0].lng, latlngs[0].lat]); // Close polygon
+    return [ring];
+}
+
+/** Convert GeoJSON polygon → Leaflet LatLng[] */
+function fromGeoJSON(coordinates) {
+    if (!coordinates?.[0]) return [];
+    return coordinates[0].slice(0, -1).map(([lng, lat]) => ({ lat, lng }));
+}
+
+/* ── Dynamic Script/CSS Loader ──────────────────────────── */
+function loadResource(url, type = "script") {
+    return new Promise((resolve, reject) => {
+        const tag = type === "css" ? "link" : "script";
+        const selector = type === "css" ? `link[href="${url}"]` : `script[src="${url}"]`;
+        if (document.querySelector(selector)) { resolve(); return; }
+
+        const el = document.createElement(tag);
+        if (type === "css") { el.rel = "stylesheet"; el.href = url; }
+        else { el.src = url; el.async = true; }
+        el.onload = resolve;
+        el.onerror = reject;
+        document.head.appendChild(el);
+    });
+}
+
+/* ================================================================
+   MAIN DASHBOARD COMPONENT
+   ================================================================ */
+export default function Dashboard({ onBack }) {
+    const { authHeaders } = useAuth();
+    /* ── Map State ──────────────────────────────────────────── */
+    const [mapReady, setMapReady] = useState(false);
+    const [tileLayer, setTileLayer] = useState("satellite");
+
+    /* ── Drawing State ──────────────────────────────────────── */
+    const [drawingMode, setDrawingMode] = useState(false);
+    const [drawingPoints, setDrawingPoints] = useState([]);
+    const [calculatedArea, setCalculatedArea] = useState(null);
+    const [areaUnit, setAreaUnit] = useState("acres");
+
+    /* ── Field Data State ───────────────────────────────────── */
+    const [fieldName, setFieldName] = useState("");
+    const [savedFields, setSavedFields] = useState([]);
+    const [activeField, setActiveField] = useState(null);
+
+    /* ── Weather State ──────────────────────────────────────── */
+    const [weather, setWeather] = useState(null);
+    const [forecast, setForecast] = useState([]);
+    const [seasonInfo, setSeasonInfo] = useState(null);
+    const [weatherLoading, setWeatherLoading] = useState(false);
+
+    /* ── AI Analysis State ──────────────────────────────────── */
+    const [aiSubTab, setAiSubTab] = useState("crops");
+    const [aiCrops, setAiCrops] = useState(null);
+    const [loadingCrops, setLoadingCrops] = useState(false);
+    const [aiDiseases, setAiDiseases] = useState(null);
+    const [loadingDiseases, setLoadingDiseases] = useState(false);
+    const [aiTips, setAiTips] = useState(null);
+    const [loadingTips, setLoadingTips] = useState(false);
+
+    /* ── Disease Scanner State ──────────────────────────────── */
+    const [scanFile, setScanFile] = useState(null);
+    const [scanPreview, setScanPreview] = useState(null);
+    const [scanResult, setScanResult] = useState(null);
+    const [scanLoading, setScanLoading] = useState(false);
+
+    /* ── UI State ───────────────────────────────────────────── */
+    const [error, setError] = useState(null);
+    const [panelTab, setPanelTab] = useState("field"); // field | weather | ai | scan | saved
+    const [panelOpen, setPanelOpen] = useState(true);
+
+    /* ── Search State ──────────────────────────────────────── */
+    const [searchQuery, setSearchQuery] = useState("");
+    const [searchResults, setSearchResults] = useState([]);
+    const [searchLoading, setSearchLoading] = useState(false);
+    const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+
+    /* ── Refs ───────────────────────────────────────────────── */
+    const mapContainerRef = useRef(null);
+    const mapRef = useRef(null);
+    const tileRef = useRef(null);
+    const drawingLayerRef = useRef(null);
+    const fieldLayersRef = useRef({});
+    const markersRef = useRef([]);
+    const scanInputRef = useRef(null);
+    const searchMarkerRef = useRef(null);
+    const searchTimeoutRef = useRef(null);
+
+    /* ── Error helper ──────────────────────────────────────── */
+    const showError = (msg) => {
+        setError(msg);
+        setTimeout(() => setError(null), 5000);
+    };
+
+    /* ── Location Search (Multi-provider: Photon + Nominatim) ── */
+    const searchLocation = useCallback(async (query) => {
+        if (!query || query.trim().length < 2) {
+            setSearchResults([]);
+            setShowSearchDropdown(false);
+            return;
+        }
+
+        setSearchLoading(true);
+        try {
+            const q = query.trim();
+
+            // Fire both free geocoding APIs in parallel for maximum coverage
+            const [photonRes, nominatimRes] = await Promise.allSettled([
+                // Photon (Komoot) — best rural/village coverage, no rate limit
+                // Note: Photon doesn't support country filter in URL, we filter results below
+                fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=12`)
+                    .then(r => r.json()),
+                // Nominatim — with Pakistan viewbox bias (covers all of Pakistan)
+                // Using viewbox + bounded=0 gives Pakistan priority without excluding other results
+                fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=8&addressdetails=1&countrycodes=pk`, {
+                    headers: { "Accept-Language": "en" },
+                }).then(r => r.json()),
+            ]);
+
+            const merged = [];
+
+            // Process Photon results — FILTER to Pakistan only (countrycode === "PK")
+            if (photonRes.status === "fulfilled" && photonRes.value?.features) {
+                for (const f of photonRes.value.features) {
+                    const props = f.properties || {};
+                    const [lng, lat] = f.geometry?.coordinates || [0, 0];
+                    if (!lat && !lng) continue;
+
+                    // *** CRITICAL: Only include Pakistan results ***
+                    if (props.countrycode && props.countrycode.toUpperCase() !== "PK") continue;
+
+                    // Build a readable display name from Photon properties
+                    const parts = [props.name, props.street, props.city, props.county, props.state, props.country]
+                        .filter(Boolean);
+                    const displayName = parts.join(", ");
+
+                    merged.push({
+                        display_name: displayName,
+                        lat: String(lat),
+                        lon: String(lng),
+                        type: props.type || props.osm_value || "place",
+                        place_id: `photon-${props.osm_id || merged.length}`,
+                        _source: "photon",
+                    });
+                }
+            }
+
+            // Add Nominatim results, skipping duplicates (within ~1km)
+            if (nominatimRes.status === "fulfilled" && Array.isArray(nominatimRes.value)) {
+                for (const r of nominatimRes.value) {
+                    const lat = parseFloat(r.lat);
+                    const lng = parseFloat(r.lon);
+                    // Skip if too close to an already-added result
+                    const isDuplicate = merged.some(
+                        (m) => Math.abs(parseFloat(m.lat) - lat) < 0.01 && Math.abs(parseFloat(m.lon) - lng) < 0.01
+                    );
+                    if (!isDuplicate) {
+                        merged.push({ ...r, _source: "nominatim" });
+                    }
+                }
+            }
+
+            // Cap at 8 results
+            const final8 = merged.slice(0, 8);
+            setSearchResults(final8);
+            setShowSearchDropdown(final8.length > 0);
+        } catch {
+            setSearchResults([]);
+            setShowSearchDropdown(false);
+        }
+        setSearchLoading(false);
+    }, []);
+
+    /** Debounced search — waits 1000ms after typing stops to prevent rate-limiting */
+    const onSearchInput = (value) => {
+        setSearchQuery(value);
+        if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+        searchTimeoutRef.current = setTimeout(() => searchLocation(value), 1000);
+    };
+
+    /** Fly to a search result and place a marker */
+    const selectSearchResult = (result) => {
+        const lat = parseFloat(result.lat);
+        const lng = parseFloat(result.lon);
+        if (!mapRef.current || isNaN(lat) || isNaN(lng)) return;
+
+        const map = mapRef.current;
+
+        // Determine zoom based on result type
+        let zoom = 14;
+        const type = result.type || "";
+        if (type === "country") zoom = 5;
+        else if (type === "state" || type === "region") zoom = 7;
+        else if (type === "county" || type === "district") zoom = 10;
+        else if (type === "city" || type === "town") zoom = 13;
+        else if (type === "village" || type === "hamlet") zoom = 15;
+        else if (type === "suburb" || type === "neighbourhood") zoom = 16;
+
+        // Fly to location
+        map.flyTo([lat, lng], zoom, { duration: 1.5 });
+
+        // Place a search marker
+        if (searchMarkerRef.current) map.removeLayer(searchMarkerRef.current);
+
+        const icon = L.divIcon({
+            className: "search-marker-icon",
+            html: '<div class="search-pin">📍</div>',
+            iconSize: [32, 32],
+            iconAnchor: [16, 32],
+        });
+
+        searchMarkerRef.current = L.marker([lat, lng], { icon })
+            .addTo(map)
+            .bindPopup(
+                `<div style="font-family:Inter,sans-serif;font-size:13px;"><strong>${result.display_name?.split(",").slice(0, 3).join(", ")}</strong><br/><span style="color:#94a3b8;font-size:11px;">${lat.toFixed(4)}°, ${lng.toFixed(4)}°</span></div>`,
+                { className: "search-popup" }
+            )
+            .openPopup();
+
+        // ── NEW: Automatically enable weather for the searched location ──
+        setWeather(null);
+        setAiAnalysis(null);
+        setActiveField(null);
+        setDrawingPoints([]); // Clear any partial drawing
+        
+        // Fetch weather for this point
+        setWeatherLoading(true);
+        fetch(`${API_BASE}/weather?lat=${lat}&lng=${lng}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    setWeather({ ...data.data.current, locationName: result.display_name?.split(",")[0] });
+                    setForecast(data.data.forecast || []);
+                    setSeasonInfo(data.data.season);
+                }
+            })
+            .catch(() => showError("Could not fetch weather for this location"))
+            .finally(() => setWeatherLoading(false));
+
+        // Close dropdown and keep query text
+        setSearchQuery(result.display_name?.split(",").slice(0, 2).join(", ") || "");
+        setShowSearchDropdown(false);
+        setSearchResults([]);
+    };
+
+    /** Clear search */
+    const clearSearch = () => {
+        setSearchQuery("");
+        setSearchResults([]);
+        setShowSearchDropdown(false);
+        if (searchMarkerRef.current && mapRef.current) {
+            mapRef.current.removeLayer(searchMarkerRef.current);
+            searchMarkerRef.current = null;
+        }
+    };
+
+    /* ── Initialize Map ────────────────────────────────────── */
+    useEffect(() => {
+        if (!mapContainerRef.current || mapRef.current) return;
+
+        const map = L.map(mapContainerRef.current, {
+            center: DEFAULT_CENTER,
+            zoom: DEFAULT_ZOOM,
+            zoomControl: false,
+            attributionControl: true,
+            // ── Prevent world repetition & gray void ──
+            minZoom: 3,
+            maxBounds: [[-85, -180], [85, 180]],
+            maxBoundsViscosity: 1.0,
+            worldCopyJump: true,
+        });
+
+        L.control.zoom({ position: "bottomright" }).addTo(map);
+
+        // Start with satellite imagery
+        const tile = TILES[tileLayer];
+        tileRef.current = L.tileLayer(tile.url, {
+            attribution: tile.attr,
+            maxZoom: 22,
+            maxNativeZoom: tile.maxNativeZoom,
+            noWrap: true,
+        }).addTo(map);
+
+        mapRef.current = map;
+        setMapReady(true);
+
+        // ── FIX: Force Leaflet to recalculate container size ──
+        // Leaflet initializes before the flex layout is fully computed,
+        // causing gray/missing tiles. Multiple invalidateSize calls at
+        // staggered intervals ensure all tiles load correctly.
+        setTimeout(() => map.invalidateSize(), 100);
+        setTimeout(() => map.invalidateSize(), 300);
+        setTimeout(() => map.invalidateSize(), 800);
+
+        // Also recalculate on any window resize
+        const onResize = () => map.invalidateSize();
+        window.addEventListener("resize", onResize);
+
+        // Geolocation button
+        const geoCtrl = L.control({ position: "bottomright" });
+        geoCtrl.onAdd = () => {
+            const div = L.DomUtil.create("div", "leaflet-bar");
+            div.innerHTML = "📍";
+            div.title = "My Location";
+            div.style.cssText = "width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;background:#1a1a2e;color:#fff;border-radius:8px;border:1px solid rgba(255,255,255,0.1);";
+            div.onclick = (e) => {
+                e.stopPropagation();
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        (pos) => map.flyTo([pos.coords.latitude, pos.coords.longitude], FIELD_ZOOM),
+                        () => showError("Location access denied"),
+                        { enableHighAccuracy: true }
+                    );
+                }
+            };
+            return div;
+        };
+        geoCtrl.addTo(map);
+
+        return () => {
+            window.removeEventListener("resize", onResize);
+            map.remove();
+            mapRef.current = null;
+        };
+    }, []);
+
+    /* ── Toggle tile layers ────────────────────────────────── */
+    useEffect(() => {
+        if (!mapRef.current || !tileRef.current) return;
+        mapRef.current.removeLayer(tileRef.current);
+        const tile = TILES[tileLayer];
+        tileRef.current = L.tileLayer(tile.url, {
+            attribution: tile.attr,
+            maxZoom: 22,
+            maxNativeZoom: tile.maxNativeZoom,
+            noWrap: true
+        });
+        tileRef.current.addTo(mapRef.current);
+    }, [tileLayer]);
+
+    /* ── Drawing Mode ──────────────────────────────────────── */
+    useEffect(() => {
+        if (!mapRef.current) return;
+        const map = mapRef.current;
+
+        if (drawingMode) {
+            map.getContainer().style.cursor = "crosshair";
+
+            const onMapClick = (e) => {
+                setDrawingPoints((prev) => {
+                    const next = [...prev, { lat: e.latlng.lat, lng: e.latlng.lng }];
+
+                    // Update polygon preview
+                    if (drawingLayerRef.current) map.removeLayer(drawingLayerRef.current);
+
+                    if (next.length >= 2) {
+                        drawingLayerRef.current = L.polygon(next, {
+                            color: "#00ff88",
+                            fillColor: "#00ff88",
+                            fillOpacity: 0.12,
+                            weight: 2.5,
+                            dashArray: "8 6",
+                        }).addTo(map);
+                    }
+
+                    // Add vertex marker
+                    L.circleMarker([e.latlng.lat, e.latlng.lng], {
+                        radius: 5,
+                        color: "#fff",
+                        fillColor: "#00ff88",
+                        fillOpacity: 1,
+                        weight: 2,
+                        className: "draw-vertex",
+                    }).addTo(map);
+
+                    // Calculate area when we have 3+ points
+                    if (next.length >= 3) {
+                        setCalculatedArea(calcArea(next, areaUnit));
+                    }
+
+                    return next;
+                });
+            };
+
+            map.on("click", onMapClick);
+
+            return () => {
+                map.off("click", onMapClick);
+                map.getContainer().style.cursor = "";
+            };
+        } else {
+            map.getContainer().style.cursor = "";
+        }
+    }, [drawingMode, areaUnit]);
+
+    /* ── Recalculate area when unit changes ─────────────────── */
+    useEffect(() => {
+        if (drawingPoints.length >= 3) {
+            setCalculatedArea(calcArea(drawingPoints, areaUnit));
+        }
+    }, [areaUnit, drawingPoints]);
+
+    /* ── Render saved fields on map ─────────────────────────── */
+    useEffect(() => {
+        if (!mapRef.current) return;
+        const map = mapRef.current;
+
+        // Clear existing field layers
+        Object.values(fieldLayersRef.current).forEach((l) => map.removeLayer(l));
+        markersRef.current.forEach((m) => map.removeLayer(m));
+        fieldLayersRef.current = {};
+        markersRef.current = [];
+
+        savedFields.forEach((field, idx) => {
+            if (!field.boundary?.coordinates?.[0]) return;
+            const latlngs = fromGeoJSON(field.boundary.coordinates);
+            if (latlngs.length < 3) return;
+
+            const color = FIELD_COLORS[idx % FIELD_COLORS.length];
+            const isActive = activeField?._id === field._id;
+
+            const polygon = L.polygon(latlngs, {
+                color: isActive ? "#FFD700" : color,
+                fillColor: color,
+                fillOpacity: isActive ? 0.35 : 0.15,
+                weight: isActive ? 3 : 2,
+            }).addTo(map);
+
+            polygon.bindTooltip(
+                `<strong>${field.name}</strong><br/>${field.area?.value?.toFixed(2) || "?"} acres`,
+                { permanent: false, direction: "center", className: "field-tooltip" }
+            );
+
+            polygon.on("click", () => {
+                setActiveField(field);
+                setPanelTab("field");
+            });
+
+            fieldLayersRef.current[field._id] = polygon;
+
+            // Center marker
+            if (field.centroid?.coordinates) {
+                const [lng, lat] = field.centroid.coordinates;
+                const marker = L.circleMarker([lat, lng], {
+                    radius: 7,
+                    color: "#fff",
+                    fillColor: color,
+                    fillOpacity: 1,
+                    weight: 2,
+                }).addTo(map);
+                marker.bindTooltip(field.name, { direction: "top", offset: [0, -10] });
+                markersRef.current.push(marker);
+            }
+        });
+    }, [savedFields, activeField]);
+
+    /* ── Fetch saved fields on mount ────────────────────────── */
+    const fetchFields = useCallback(async () => {
+        try {
+            const res = await fetch(`${API_BASE}/fields`, {
+                headers: { ...authHeaders() },
+            });
+            const data = await res.json();
+            if (data.success) setSavedFields(data.data || []);
+        } catch {
+            // Silent — fields will show as empty
+        }
+    }, [authHeaders]);
+
+    useEffect(() => { 
+        fetchFields().then(() => {
+            // Auto-select first field if available to avoid empty state
+            if (savedFields.length > 0 && !activeField && !drawingMode) {
+                // We'll do this in the next render cycle after savedFields is updated
+            }
+        }); 
+    }, [fetchFields]);
+
+    useEffect(() => {
+        if (savedFields.length > 0 && !activeField && !drawingMode && !drawingPoints.length) {
+            setActiveField(savedFields[0]);
+        }
+    }, [savedFields]);
+
+    /* ── Start Drawing ─────────────────────────────────────── */
+    const startDrawing = () => {
+        // Clear any existing drawing layer
+        if (drawingLayerRef.current && mapRef.current) {
+            mapRef.current.removeLayer(drawingLayerRef.current);
+            drawingLayerRef.current = null;
+        }
+        setDrawingMode(true);
+        setDrawingPoints([]);
+        setCalculatedArea(null);
+        setFieldName("");
+        setWeather(null);
+        setAiAnalysis(null);
+        setPanelTab("field");
+    };
+
+    /* ── Undo Last Point ───────────────────────────────────── */
+    const undoLastPoint = () => {
+        setDrawingPoints((prev) => {
+            const next = prev.slice(0, -1);
+            if (drawingLayerRef.current && mapRef.current) {
+                mapRef.current.removeLayer(drawingLayerRef.current);
+                drawingLayerRef.current = null;
+            }
+            if (next.length >= 2) {
+                drawingLayerRef.current = L.polygon(next, {
+                    color: "#00ff88", fillColor: "#00ff88", fillOpacity: 0.12,
+                    weight: 2.5, dashArray: "8 6",
+                }).addTo(mapRef.current);
+            }
+            if (next.length >= 3) setCalculatedArea(calcArea(next, areaUnit));
+            else setCalculatedArea(null);
+            return next;
+        });
+    };
+
+    /* ── Cancel Drawing ────────────────────────────────────── */
+    const cancelDrawing = () => {
+        setDrawingMode(false);
+        setDrawingPoints([]);
+        setCalculatedArea(null);
+        if (drawingLayerRef.current && mapRef.current) {
+            mapRef.current.removeLayer(drawingLayerRef.current);
+            drawingLayerRef.current = null;
+        }
+    };
+
+    /* ── Finish Drawing & Fetch Weather ────────────────────── */
+    const finishDrawing = async () => {
+        if (drawingPoints.length < 3) {
+            showError("Draw at least 3 points to form a field boundary");
+            return;
+        }
+
+        setDrawingMode(false);
+
+        // Calculate centroid for weather lookup
+        const centroid = calcCentroid(drawingPoints);
+
+        // Fetch weather
+        setWeatherLoading(true);
+        try {
+            const res = await fetch(`${API_BASE}/weather?lat=${centroid.lat}&lng=${centroid.lng}`);
+            const data = await res.json();
+            if (data.success) {
+                setWeather(data.data.current);
+                setForecast(data.data.forecast || []);
+                setSeasonInfo(data.data.season);
+            }
+        } catch {
+            showError("Could not fetch weather data");
+        }
+        setWeatherLoading(false);
+
+        setPanelTab("weather");
+    };
+
+    /* ── Save Field ────────────────────────────────────────── */
+    const saveField = async () => {
+        if (drawingPoints.length < 3) {
+            showError("No field boundary drawn");
+            return;
+        }
+        if (!fieldName.trim()) {
+            showError("Please provide a field name");
+            return;
+        }
+
+        try {
+            const geoCoords = toGeoJSON(drawingPoints);
+            const res = await fetch(`${API_BASE}/fields`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", ...authHeaders() },
+                body: JSON.stringify({
+                    name: fieldName.trim(),
+                    boundary: { type: "Polygon", coordinates: geoCoords },
+                }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                setActiveField(data.data);
+                await fetchFields();
+                setDrawingPoints([]);
+                if (drawingLayerRef.current && mapRef.current) {
+                    mapRef.current.removeLayer(drawingLayerRef.current);
+                    drawingLayerRef.current = null;
+                }
+            } else {
+                showError(data.error || "Failed to save field");
+            }
+        } catch {
+            showError("Network error saving field");
+        }
+    };
+
+    /* ── Run AI Analysis ───────────────────────────────────── */
+    const runTabAnalysis = async (tabType) => {
+        const centroid = drawingPoints.length >= 3
+            ? calcCentroid(drawingPoints)
+            : (activeField?.centroid?.coordinates
+                ? { lat: activeField.centroid.coordinates[1], lng: activeField.centroid.coordinates[0] }
+                : null);
+
+        if (!centroid) {
+            showError("Draw or select a field first");
+            return;
+        }
+
+        setPanelTab("ai");
+        setAiSubTab(tabType);
+
+        const area = calculatedArea || activeField?.area?.value || 1;
+        const payload = {
+            fieldId: activeField?._id || null,
+            lat: centroid.lat,
+            lng: centroid.lng,
+            areaAcres: area,
+            locationName: weather?.locationName || activeField?.locationName || "",
+            previousCrops: aiCrops?.recommendation?.fullResponse || "",
+            previousDiseases: aiDiseases?.recommendation?.fullResponse || "",
+        };
+
+        try {
+            if (tabType === 'crops') {
+                setLoadingCrops(true);
+                const res = await fetch(`${API_BASE}/analyze/crops`, {
+                    method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(payload),
+                });
+                const data = await res.json();
+                if (data.success) setAiCrops(data.data); else showError(data.error);
+                setLoadingCrops(false);
+            } else if (tabType === 'diseases') {
+                setLoadingDiseases(true);
+                const res = await fetch(`${API_BASE}/analyze/diseases`, {
+                    method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(payload),
+                });
+                const data = await res.json();
+                if (data.success) setAiDiseases(data.data); else showError(data.error);
+                setLoadingDiseases(false);
+            } else if (tabType === 'tips') {
+                setLoadingTips(true);
+                const res = await fetch(`${API_BASE}/analyze/tips`, {
+                    method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(payload),
+                });
+                const data = await res.json();
+                if (data.success) setAiTips(data.data); else showError(data.error);
+                setLoadingTips(false);
+            }
+        } catch {
+            showError(`Failed to fetch ${tabType} analysis.`);
+            if (tabType === 'crops') setLoadingCrops(false);
+            if (tabType === 'diseases') setLoadingDiseases(false);
+            if (tabType === 'tips') setLoadingTips(false);
+        }
+    };
+
+    const runAnalysis = () => runTabAnalysis('crops');
+
+    /* ── Disease Scan ──────────────────────────────────────── */
+    const handleScanFile = (f) => {
+        if (!f) return;
+        const valid = ["image/jpeg", "image/png", "image/webp"];
+        if (!valid.includes(f.type)) { showError("Please select a JPG, PNG or WebP image"); return; }
+        if (f.size > 10 * 1024 * 1024) { showError("Image must be under 10 MB"); return; }
+        setScanFile(f);
+        setScanResult(null);
+        const reader = new FileReader();
+        reader.onload = (e) => setScanPreview(e.target.result);
+        reader.readAsDataURL(f);
+    };
+
+    const submitScan = async () => {
+        if (!scanFile) return;
+
+        setScanLoading(true);
+        setScanResult(null);
+
+        const centroid = drawingPoints.length >= 3
+            ? calcCentroid(drawingPoints)
+            : (activeField?.centroid?.coordinates
+                ? { lat: activeField.centroid.coordinates[1], lng: activeField.centroid.coordinates[0] }
+                : { lat: 0, lng: 0 });
+
+        const fd = new FormData();
+        fd.append("image", scanFile);
+        fd.append("fieldId", activeField?._id || "");
+        fd.append("lat", centroid.lat);
+        fd.append("lng", centroid.lng);
+
+        try {
+            const res = await fetch(`${API_BASE}/scan`, {
+                method: "POST",
+                headers: { ...authHeaders() },
+                body: fd,
+            });
+            const data = await res.json();
+            if (data.success) {
+                setScanResult(data.data);
+            } else {
+                showError(data.error || "Scan failed");
+            }
+        } catch {
+            showError("Disease scan request failed");
+        }
+
+        setScanLoading(false);
+    };
+
+    /* ── Delete Field ──────────────────────────────────────── */
+    const deleteField = async (id) => {
+        if (!confirm("Delete this field and its data?")) return;
+        try {
+            const res = await fetch(`${API_BASE}/fields/${id}`, {
+                method: "DELETE",
+                headers: { ...authHeaders() },
+            });
+            const data = await res.json();
+            if (data.success) {
+                if (activeField?._id === id) setActiveField(null);
+                await fetchFields();
+            }
+        } catch {
+            showError("Failed to delete field");
+        }
+    };
+
+    /* ── Fly to field ──────────────────────────────────────── */
+    const flyToField = (field) => {
+        if (!mapRef.current || !field.centroid?.coordinates) return;
+        const [lng, lat] = field.centroid.coordinates;
+        mapRef.current.flyTo([lat, lng], FIELD_ZOOM, { duration: 1.2 });
+        setActiveField(field);
+        setWeather(field.weather || null);
+        setAiAnalysis(field.aiRecommendation ? { recommendation: field.aiRecommendation, weather: field.weather } : null);
+        setPanelTab("field");
+    };
+
+    /* ── Format AI text with markdown-like rendering ──────── */
+    const renderAIText = (text) => {
+        if (!text) return null;
+
+        // Split into lines and process
+        return text.split("\n").map((line, i) => {
+            // H2 headers
+            if (line.startsWith("## ")) {
+                return <h3 key={i} className="ai-heading">{line.replace("## ", "")}</h3>;
+            }
+            // H3 headers
+            if (line.startsWith("### ")) {
+                return <h4 key={i} className="ai-subheading">{line.replace("### ", "")}</h4>;
+            }
+            // Bold text
+            if (line.includes("**")) {
+                const parts = line.split(/\*\*(.*?)\*\*/g);
+                return (
+                    <p key={i} className="ai-line">
+                        {parts.map((part, j) =>
+                            j % 2 === 1 ? <strong key={j}>{part}</strong> : part
+                        )}
+                    </p>
+                );
+            }
+            // Bullet points
+            if (line.trim().startsWith("- ") || line.trim().startsWith("• ")) {
+                return <li key={i} className="ai-bullet">{line.replace(/^[\s]*[-•]\s*/, "")}</li>;
+            }
+            // Empty lines
+            if (line.trim() === "") return <br key={i} />;
+            // Regular text
+            return <p key={i} className="ai-line">{line}</p>;
+        });
+    };
+
+    /* ─────────────────── RENDER ──────────────────────────── */
+    return (
+        <div className="dashboard">
+            {/* ── MAP SECTION ─────────────────────────────── */}
+            <div className="dash-map-section">
+                <div ref={mapContainerRef} className="dash-map-canvas" id="precision-map" />
+
+                {/* Map controls overlay */}
+                <div className="dash-map-controls">
+                    {/* Top row: Back + Search + Tiles */}
+                    <div className="dash-controls-row">
+                        {/* Back button */}
+                        {onBack && (
+                            <button className="dash-ctrl-btn dash-back-btn" onClick={onBack} title="Back to Detector">
+                                ← Back
+                            </button>
+                        )}
+
+                        {/* 🔍 Location Search Bar */}
+                        <div className="dash-search-wrap" onClick={(e) => e.stopPropagation()}>
+                            <div className="dash-search-bar">
+                                <span className="dash-search-icon">🔍</span>
+                                <input
+                                    type="text"
+                                    className="dash-search-input"
+                                    placeholder="Search city, village, or place..."
+                                    value={searchQuery}
+                                    onChange={(e) => onSearchInput(e.target.value)}
+                                    onFocus={() => searchResults.length > 0 && setShowSearchDropdown(true)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                            e.preventDefault();
+                                            searchLocation(searchQuery);
+                                        }
+                                        if (e.key === "Escape") setShowSearchDropdown(false);
+                                    }}
+                                />
+                                {searchLoading && <span className="dash-search-spinner" />}
+                                {searchQuery && !searchLoading && (
+                                    <button className="dash-search-clear" onClick={clearSearch}>×</button>
+                                )}
+                            </div>
+
+                            {/* Search results dropdown */}
+                            {showSearchDropdown && searchResults.length > 0 && (
+                                <div className="dash-search-dropdown">
+                                    {searchResults.map((r, i) => (
+                                        <button
+                                            key={r.place_id || i}
+                                            className="dash-search-result"
+                                            onClick={() => selectSearchResult(r)}
+                                        >
+                                            <span className="search-result-icon">
+                                                {r.type === "city" || r.type === "town" ? "🏙️" :
+                                                    r.type === "village" || r.type === "hamlet" ? "🏘️" :
+                                                        r.type === "country" ? "🌍" :
+                                                            r.type === "state" || r.type === "region" ? "📍" :
+                                                                "📌"}
+                                            </span>
+                                            <div className="search-result-text">
+                                                <span className="search-result-name">
+                                                    {r.display_name?.split(",").slice(0, 2).join(",")}
+                                                </span>
+                                                <span className="search-result-detail">
+                                                    {r.display_name?.split(",").slice(2, 4).join(",").trim()}
+                                                </span>
+                                            </div>
+                                            <span className="search-result-type">{r.type}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Tile layer toggle */}
+                        <div className="dash-tile-toggle">
+                            {Object.keys(TILES).map((key) => (
+                                <button
+                                    key={key}
+                                    className={`dash-tile-btn ${tileLayer === key ? "active" : ""}`}
+                                    onClick={() => setTileLayer(key)}
+                                >
+                                    {key === "satellite" ? "🛰️" : key === "street" ? "🗺️" : "🏔️"}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Drawing controls */}
+                    {!drawingMode ? (
+                        <button className="dash-ctrl-btn dash-draw-btn" onClick={startDrawing}>
+                            ✏️ Draw Field Boundary
+                        </button>
+                    ) : (
+                        <div className="dash-draw-controls">
+                            <div className="dash-draw-status">
+                                <span className="dash-draw-dot" />
+                                <span>Click map to place points</span>
+                            </div>
+                            <div className="dash-draw-stats">
+                                <span>Points: <strong>{drawingPoints.length}</strong></span>
+                                {calculatedArea !== null && (
+                                    <span className="dash-draw-area">
+                                        Area: <strong>{calculatedArea.toFixed(2)}</strong>
+                                        <select
+                                            value={areaUnit}
+                                            onChange={(e) => setAreaUnit(e.target.value)}
+                                            className="dash-unit-select"
+                                        >
+                                            <option value="acres">acres</option>
+                                            <option value="hectares">ha</option>
+                                            <option value="sqft">sq ft</option>
+                                        </select>
+                                    </span>
+                                )}
+                            </div>
+                            <div className="dash-draw-actions">
+                                <button className="dash-ctrl-btn" onClick={undoLastPoint} disabled={drawingPoints.length === 0}>
+                                    ↩ Undo
+                                </button>
+                                <button className="dash-ctrl-btn dash-finish-btn" onClick={finishDrawing} disabled={drawingPoints.length < 3}>
+                                    ✓ Finish
+                                </button>
+                                <button className="dash-ctrl-btn dash-cancel-btn" onClick={cancelDrawing}>
+                                    ✕ Cancel
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Map loading overlay */}
+                {!mapReady && (
+                    <div className="dash-map-loading">
+                        <div className="dash-loader" />
+                        <p>Loading satellite imagery...</p>
+                    </div>
+                )}
+            </div>
+
+            {/* ── PANEL SECTION ────────────────────────────── */}
+            <div className={`dash-panel ${panelOpen ? "open" : "collapsed"}`}>
+                {/* Panel toggle (mobile) */}
+                <button
+                    className="dash-panel-toggle"
+                    onClick={() => setPanelOpen(!panelOpen)}
+                >
+                    {panelOpen ? "▼" : "▲"} Control Panel
+                </button>
+
+                {/* Panel header */}
+                <div className="dash-panel-header">
+                    <h2>🌾 Precision Agriculture</h2>
+                    <p className="dash-panel-sub">AI-Powered Field Analysis</p>
+                </div>
+
+                {/* Tab navigation */}
+                <div className="dash-tabs">
+                    {[
+                        { key: "field", icon: "📐", label: "Field" },
+                        { key: "weather", icon: "🌤️", label: "Weather" },
+                        { key: "ai", icon: "🤖", label: "AI Crops" },
+                        { key: "scan", icon: "🔬", label: "Scan" },
+                        { key: "saved", icon: "💾", label: "Saved" },
+                    ].map((tab) => (
+                        <button
+                            key={tab.key}
+                            className={`dash-tab ${panelTab === tab.key ? "active" : ""}`}
+                            onClick={() => setPanelTab(tab.key)}
+                        >
+                            <span className="tab-icon">{tab.icon}</span>
+                            <span className="tab-label">{tab.label}</span>
+                        </button>
+                    ))}
+                </div>
+
+                {/* Panel content */}
+                <div className="dash-panel-content">
+                    {/* ── FIELD TAB ─────────────────────────── */}
+                    {panelTab === "field" && (
+                        <div className="dash-card-stack">
+                            {/* Drawn field info */}
+                            {drawingPoints.length >= 3 && (
+                                <div className="dash-card glass">
+                                    <h3 className="dash-card-title">📐 Field Boundary</h3>
+                                    <div className="dash-field-stats">
+                                        <div className="dash-stat">
+                                            <span className="stat-label">Area</span>
+                                            <span className="stat-value">
+                                                {calculatedArea?.toFixed(2) || "—"}
+                                                <small> {areaUnit}</small>
+                                            </span>
+                                        </div>
+                                        <div className="dash-stat">
+                                            <span className="stat-label">Points</span>
+                                            <span className="stat-value">{drawingPoints.length}</span>
+                                        </div>
+                                        <div className="dash-stat">
+                                            <span className="stat-label">Center</span>
+                                            <span className="stat-value stat-small">
+                                                {calcCentroid(drawingPoints).lat.toFixed(4)}°, {calcCentroid(drawingPoints).lng.toFixed(4)}°
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Save field */}
+                                    <div className="dash-save-field">
+                                        <input
+                                            type="text"
+                                            className="dash-input"
+                                            placeholder="Field name (e.g., North Field)"
+                                            value={fieldName}
+                                            onChange={(e) => setFieldName(e.target.value)}
+                                        />
+                                        <button className="dash-btn primary" onClick={saveField}>
+                                            💾 Save Field
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Active saved field info */}
+                            {activeField && (
+                                <div className="dash-card glass">
+                                    <h3 className="dash-card-title">🗺️ {activeField.name}</h3>
+                                    <div className="dash-field-stats">
+                                        <div className="dash-stat">
+                                            <span className="stat-label">Area</span>
+                                            <span className="stat-value">
+                                                {activeField.area?.value?.toFixed(2) || "—"}
+                                                <small> {activeField.area?.unit || "acres"}</small>
+                                            </span>
+                                        </div>
+                                        <div className="dash-stat">
+                                            <span className="stat-label">Location</span>
+                                            <span className="stat-value stat-small">
+                                                {activeField.locationName || "—"}
+                                            </span>
+                                        </div>
+                                        <div className="dash-stat">
+                                            <span className="stat-label">Season</span>
+                                            <span className="stat-value">{activeField.season || "—"}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Quick actions */}
+                            <div className="dash-card glass">
+                                <h3 className="dash-card-title">⚡ Quick Actions</h3>
+                                <div className="dash-actions-grid">
+                                    <button
+                                        className="dash-action-btn"
+                                        onClick={() => setPanelTab("weather")}
+                                        disabled={(drawingPoints.length < 3 && !activeField && !weather) || weatherLoading}
+                                    >
+                                        <span>🌤️</span>
+                                        <span>Get Weather</span>
+                                    </button>
+                                    <button
+                                        className="dash-action-btn"
+                                        onClick={runAnalysis}
+                                        disabled={(drawingPoints.length < 3 && !activeField && !weather) || loadingCrops}
+                                    >
+                                        <span>🤖</span>
+                                        <span>AI Analysis</span>
+                                    </button>
+                                    <button
+                                        className="dash-action-btn"
+                                        onClick={() => setPanelTab("scan")}
+                                    >
+                                        <span>🔬</span>
+                                        <span>Scan Disease</span>
+                                    </button>
+                                    <button
+                                        className="dash-action-btn"
+                                        onClick={() => setPanelTab("saved")}
+                                    >
+                                        <span>💾</span>
+                                        <span>My Fields</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* No field state */}
+                            {drawingPoints.length < 3 && !activeField && (
+                                <div className="dash-empty-state">
+                                    <span className="empty-icon">🗺️</span>
+                                    <p>Draw a field boundary on the map</p>
+                                    <p className="empty-sub">
+                                        Click <strong>"✏️ Draw Field Boundary"</strong> on the map,
+                                        then click to place points around your field.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ── WEATHER TAB ───────────────────────── */}
+                    {panelTab === "weather" && (
+                        <div className="dash-card-stack">
+                            {weatherLoading && (
+                                <div className="dash-card glass">
+                                    <div className="dash-loading-state">
+                                        <div className="dash-loader" />
+                                        <p>Fetching weather data...</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {weather && !weatherLoading && (
+                                <>
+                                    {/* Current weather */}
+                                    <div className="dash-card glass weather-card">
+                                        <div className="weather-hero">
+                                            <div className="weather-icon-large">
+                                                {WEATHER_ICONS[weather.condition] || "🌡️"}
+                                            </div>
+                                            <div className="weather-main">
+                                                <span className="weather-temp">{weather.temperature}°C</span>
+                                                <span className="weather-desc">{weather.conditionDetail || weather.condition}</span>
+                                                <span className="weather-location">{weather.locationName || "Your Field"}</span>
+                                            </div>
+                                        </div>
+                                        <div className="weather-grid">
+                                            <div className="weather-item">
+                                                <span className="wi-icon">💧</span>
+                                                <span className="wi-label">Humidity</span>
+                                                <span className="wi-value">{weather.humidity}%</span>
+                                            </div>
+                                            <div className="weather-item">
+                                                <span className="wi-icon">💨</span>
+                                                <span className="wi-label">Wind</span>
+                                                <span className="wi-value">{weather.windSpeed} m/s</span>
+                                            </div>
+                                            <div className="weather-item">
+                                                <span className="wi-icon">🌡️</span>
+                                                <span className="wi-label">Feels Like</span>
+                                                <span className="wi-value">{weather.feelsLike}°C</span>
+                                            </div>
+                                            <div className="weather-item">
+                                                <span className="wi-icon">☁️</span>
+                                                <span className="wi-label">Clouds</span>
+                                                <span className="wi-value">{weather.cloudCoverage}%</span>
+                                            </div>
+                                            <div className="weather-item">
+                                                <span className="wi-icon">🔭</span>
+                                                <span className="wi-label">Visibility</span>
+                                                <span className="wi-value">{(weather.visibility / 1000).toFixed(1)} km</span>
+                                            </div>
+                                            <div className="weather-item">
+                                                <span className="wi-icon">📊</span>
+                                                <span className="wi-label">Pressure</span>
+                                                <span className="wi-value">{weather.pressure} hPa</span>
+                                            </div>
+                                        </div>
+                                        {weather.isMock && (
+                                            <div className="weather-mock-badge">📋 Sample data — add OPENWEATHER_API_KEY for live weather</div>
+                                        )}
+                                    </div>
+
+                                    {/* Season info */}
+                                    {seasonInfo && (
+                                        <div className="dash-card glass">
+                                            <h3 className="dash-card-title">🌱 Current Season</h3>
+                                            <div className="season-info">
+                                                <span className="season-name">{seasonInfo.seasonName}</span>
+                                                <span className="season-month">{seasonInfo.monthName}</span>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Forecast */}
+                                    {forecast.length > 0 && (
+                                        <div className="dash-card glass">
+                                            <h3 className="dash-card-title">📅 Forecast</h3>
+                                            <div className="forecast-scroll">
+                                                {forecast.slice(0, 8).map((f, i) => (
+                                                    <div key={i} className="forecast-item">
+                                                        <span className="fc-time">
+                                                            {new Date(f.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                                                        </span>
+                                                        <span className="fc-icon">{WEATHER_ICONS[f.condition] || "🌡️"}</span>
+                                                        <span className="fc-temp">{Math.round(f.temperature)}°</span>
+                                                        <span className="fc-rain">💧{f.pop}%</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Trigger AI analysis */}
+                                    <button className="dash-btn primary full-width" onClick={runAnalysis} disabled={loadingCrops}>
+                                        {loadingCrops ? (
+                                            <><span className="dash-spinner" /> Analyzing...</>
+                                        ) : (
+                                            "🤖 Get AI Crop Recommendations"
+                                        )}
+                                    </button>
+                                </>
+                            )}
+
+                            {!weather && !weatherLoading && (
+                                <div className="dash-empty-state">
+                                    <span className="empty-icon">🌤️</span>
+                                    <p>No weather data yet</p>
+                                    <p className="empty-sub">
+                                        Draw a field boundary and click "Finish" to
+                                        fetch weather data for your location.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ── AI ANALYSIS TAB ───────────────────── */}
+                    {panelTab === "ai" && (
+                        <div className="dash-card-stack">
+                            <div className="dash-card glass">
+                                <h3 className="dash-card-title" style={{ marginBottom: "12px" }}>🤖 AI Analysis</h3>
+                                
+                                <div className="ai-tab-content">
+                                    {/* Initial State */}
+                                    {!aiCrops && !loadingCrops && (
+                                        <div className="dash-empty-state">
+                                            <button className="dash-btn primary full-width" onClick={() => runTabAnalysis('crops')}>
+                                                Generate Crop Recommendations
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Crops Section */}
+                                    {loadingCrops && (
+                                        <div className="dash-loading-state"><div className="dash-loader" /><p>Analyzing optimal crops...</p></div>
+                                    )}
+                                    {aiCrops && (
+                                        <div className="ai-text-content">
+                                            {renderAIText(aiCrops.recommendation?.fullResponse)}
+                                            
+                                            {/* Transition to Diseases */}
+                                            {!aiDiseases && !loadingDiseases && (
+                                                <button className="dash-btn primary full-width" style={{ marginTop: '16px' }} onClick={() => runTabAnalysis('diseases')}>
+                                                    Next: Analyze Disease Risks 🛡️
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Diseases Section */}
+                                    {loadingDiseases && (
+                                        <div className="dash-loading-state"><div className="dash-loader" /><p>Analyzing disease risks...</p></div>
+                                    )}
+                                    {aiDiseases && (
+                                        <div className="ai-text-content" style={{ marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '16px' }}>
+                                            {renderAIText(aiDiseases.recommendation?.fullResponse)}
+                                            
+                                            {/* Transition to Tips */}
+                                            {!aiTips && !loadingTips && (
+                                                <button className="dash-btn primary full-width" style={{ marginTop: '16px' }} onClick={() => runTabAnalysis('tips')}>
+                                                    Next: View Weather Tips & Season Planning 🌤️
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Tips Section */}
+                                    {loadingTips && (
+                                        <div className="dash-loading-state"><div className="dash-loader" /><p>Generating tips & financials...</p></div>
+                                    )}
+                                    {aiTips && (
+                                        <div className="ai-text-content" style={{ marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '16px' }}>
+                                            {renderAIText(aiTips.recommendation?.fullResponse)}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── SCAN TAB ──────────────────────────── */}
+                    {panelTab === "scan" && (
+                        <div className="dash-card-stack">
+                            <div className="dash-card glass">
+                                <h3 className="dash-card-title">🔬 Disease Scanner</h3>
+                                <p className="dash-card-desc">
+                                    Upload a crop/leaf image for AI-powered disease detection.
+                                </p>
+
+                                {/* Upload area */}
+                                <div
+                                    className="dash-scan-drop"
+                                    onClick={() => scanInputRef.current?.click()}
+                                    onDragOver={(e) => e.preventDefault()}
+                                    onDrop={(e) => {
+                                        e.preventDefault();
+                                        if (e.dataTransfer.files?.[0]) handleScanFile(e.dataTransfer.files[0]);
+                                    }}
+                                >
+                                    {scanPreview ? (
+                                        <div className="scan-preview-wrap">
+                                            <img src={scanPreview} alt="Scan preview" className="scan-preview-img" />
+                                            <button
+                                                className="scan-remove"
+                                                onClick={(e) => { e.stopPropagation(); setScanFile(null); setScanPreview(null); setScanResult(null); }}
+                                            >
+                                                ×
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="scan-placeholder">
+                                            <span className="scan-upload-icon">📷</span>
+                                            <p>Drag & drop or click to upload</p>
+                                            <p className="scan-upload-sub">JPG, PNG, WebP · Max 10 MB</p>
+                                        </div>
+                                    )}
+                                    <input
+                                        ref={scanInputRef}
+                                        type="file"
+                                        accept="image/jpeg,image/png,image/webp"
+                                        hidden
+                                        onChange={(e) => e.target.files?.[0] && handleScanFile(e.target.files[0])}
+                                    />
+                                </div>
+
+                                <button
+                                    className="dash-btn primary full-width"
+                                    disabled={!scanFile || scanLoading}
+                                    onClick={submitScan}
+                                >
+                                    {scanLoading ? (
+                                        <><span className="dash-spinner" /> Scanning...</>
+                                    ) : (
+                                        "🔬 Analyze Image"
+                                    )}
+                                </button>
+                            </div>
+
+                            {/* Scan result */}
+                            {scanResult && (
+                                <div className="dash-card glass">
+                                    <h3 className="dash-card-title">
+                                        {scanResult.mlResult?.is_healthy || scanResult.prediction?.isHealthy
+                                            ? "✅ Healthy Plant"
+                                            : "⚠️ Disease Detected"
+                                        }
+                                    </h3>
+                                    <div className="scan-result-body">
+                                        <div className="scan-disease-name">
+                                            {scanResult.mlResult?.prediction || scanResult.prediction?.disease || "Unknown"}
+                                        </div>
+                                        <div className="scan-confidence">
+                                            <div className="scan-conf-label">
+                                                Confidence: <strong>{(scanResult.mlResult?.confidence || scanResult.prediction?.confidence || 0).toFixed(1)}%</strong>
+                                            </div>
+                                            <div className="scan-conf-bar">
+                                                <div
+                                                    className="scan-conf-fill"
+                                                    style={{
+                                                        width: `${scanResult.mlResult?.confidence || scanResult.prediction?.confidence || 0}%`,
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                        {scanResult.mlResult?.description && (
+                                            <p className="scan-desc">{scanResult.mlResult.description}</p>
+                                        )}
+                                        {scanResult.mlResult?.recommendation && (
+                                            <p className="scan-rec">{scanResult.mlResult.recommendation}</p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ── SAVED FIELDS TAB ──────────────────── */}
+                    {panelTab === "saved" && (
+                        <div className="dash-card-stack">
+                            <div className="dash-card glass">
+                                <h3 className="dash-card-title">💾 Saved Fields ({savedFields.length})</h3>
+                            </div>
+
+                            {savedFields.length === 0 && (
+                                <div className="dash-empty-state">
+                                    <span className="empty-icon">📍</span>
+                                    <p>No saved fields yet</p>
+                                    <p className="empty-sub">
+                                        Draw a boundary, name it, and save to build your farm profile.
+                                    </p>
+                                </div>
+                            )}
+
+                            {savedFields.map((field, idx) => (
+                                <div
+                                    key={field._id}
+                                    className={`dash-card glass saved-field-card ${activeField?._id === field._id ? "active" : ""}`}
+                                    onClick={() => flyToField(field)}
+                                >
+                                    <div
+                                        className="saved-field-color"
+                                        style={{ backgroundColor: FIELD_COLORS[idx % FIELD_COLORS.length] }}
+                                    />
+                                    <div className="saved-field-body">
+                                        <h4>{field.name}</h4>
+                                        <div className="saved-field-meta">
+                                            <span>📐 {field.area?.value?.toFixed(2)} {field.area?.unit || "acres"}</span>
+                                            {field.locationName && <span>📍 {field.locationName}</span>}
+                                            {field.season && <span>🌱 {field.season}</span>}
+                                        </div>
+                                    </div>
+                                    <button
+                                        className="saved-field-delete"
+                                        onClick={(e) => { e.stopPropagation(); deleteField(field._id); }}
+                                        title="Delete field"
+                                    >
+                                        🗑️
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* ── ERROR TOAST ──────────────────────────────── */}
+            {error && (
+                <div className="dash-toast">
+                    <span>⚠️</span>
+                    <span>{error}</span>
+                </div>
+            )}
+        </div>
+    );
+}

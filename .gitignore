@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Environment files
+.env
+server/.env
+client/.env
+ml-service/.env
+
+# Build output
+client/dist/
+client/build/
+
+# Uploads & temp files
+server/uploads/*
+uploads/*
+!server/uploads/.gitkeep
+
+# Python
+ml-service/__pycache__/
+ml-service/*.pyc
+ml-service/.venv/
+ml-service/venv/
+
+# ML model files (large — use Git LFS or download separately)
+ml-service/models/*.h5
+ml-service/models/*.pkl
+*.h5
+
+# Dataset (too large for git)
+dataset/
+dataset.zip
+archive/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Temp & misc
+tmp/
+.node_repl_history

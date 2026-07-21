@@ -1,0 +1,10 @@
+{
+  "notice": "PLACEHOLDER — Replace these files after training your model on Google Colab",
+  "steps": [
+    "1. Run plant_disease_colab_v2.ipynb on Google Colab (with GPU)",
+    "2. Cell 5 converts the trained model to TF.js format",
+    "3. Download tfjs_model.zip from Colab",
+    "4. Extract all files into this directory (client/public/model/)",
+    "5. You should have: model.json, group1-shard*.bin, class_names.json"
+  ]
+}
