@@ -196,6 +196,48 @@ const DISEASE_INFO = {
         recommendation:
             "Keep up regular care — proper watering, fertilisation, and pest monitoring.",
     },
+    Mildew: {
+        description:
+            "Powdery or downy mildew appears as white, flour-like fungal growth on leaves and stems, causing yellowing and premature leaf drop.",
+        recommendation:
+            "Apply sulfur- or copper-based fungicides. Improve air circulation around plants and avoid wetting foliage when watering.",
+    },
+    Mite: {
+        description:
+            "Mites are tiny arachnid pests that pierce plant tissue to suck sap, causing yellow stippling, leaf bronzing, and fine webbing.",
+        recommendation:
+            "Spray with miticides, neem oil, or insecticidal soap. Introduce predatory mites as natural biological controls.",
+    },
+    Septoria: {
+        description:
+            "Septoria leaf blotch causes oval, greyish-brown spots with small black speck-like fruiting bodies (pycnidia) on leaves.",
+        recommendation:
+            "Apply foliar fungicides early. Practice crop rotation and remove infected plant debris to reduce overwintering fungi.",
+    },
+    Smut: {
+        description:
+            "Smut is a fungal disease replacing plant tissue (heads or leaves) with dark, powdery masses of fungal spores.",
+        recommendation:
+            "Use certified disease-free treated seeds. Plant resistant crop varieties and rogue out infected heads before spore release.",
+    },
+    "Stem fly": {
+        description:
+            "Stem fly larvae bore into plant stems, causing wilting, stem lodging, and drying of central leaves (dead hearts).",
+        recommendation:
+            "Apply systemic insecticides early in the season. Use yellow sticky traps and practice proper field sanitation.",
+    },
+    "Tan spot": {
+        description:
+            "Tan spot (Pyrenophora tritici-repentis) causes small, tan to brown oval spots with dark centres and yellow halos on leaves.",
+        recommendation:
+            "Use resistant cultivars, apply foliar triazole/strucbilurin fungicides, and practice stubble management or crop rotation.",
+    },
+    "Yellow Rust": {
+        description:
+            "Yellow (stripe) rust, caused by Puccinia striiformis, forms bright yellow pustules arranged in prominent linear stripes on leaves.",
+        recommendation:
+            "Plant resistant crop varieties. Apply foliar triazole fungicides at first sign of rust stripes.",
+    },
 };
 
 /**
@@ -215,6 +257,13 @@ const DISPLAY_NAMES = {
     Healthy: "Healthy Plant",
     Late_Blight: "Late Blight",
     "Leaf Blight": "Leaf Blight",
+    Mildew: "Powdery / Downy Mildew",
+    Mite: "Mite Infestation",
+    Septoria: "Septoria Leaf Blotch",
+    Smut: "Smut Disease",
+    "Stem fly": "Stem Fly Damage",
+    "Tan spot": "Tan Spot",
+    "Yellow Rust": "Yellow (Stripe) Rust",
     Pepper__bell___Bacterial_spot: "Pepper Bell — Bacterial Spot",
     Pepper__bell___healthy: "Pepper Bell — Healthy",
     Potato___Early_blight: "Potato — Early Blight",
@@ -273,7 +322,7 @@ export async function loadOfflineModel(onProgress) {
         console.log(`🚀 [OFFLINE MODEL] Starting load sequence (v${MODEL_VERSION})...`);
         const startTime = performance.now();
         const INDEXEDDB_URL = "indexeddb://plant-disease-model";
-        const NETWORK_URL = "/model/model.json";
+        const NETWORK_URL = "/models/plant-disease/model.json";
 
         try {
             onProgress?.(0.01);
@@ -295,7 +344,7 @@ export async function loadOfflineModel(onProgress) {
             // 1. Try to load from IndexedDB first
             try {
                 console.log("⏳ [OFFLINE MODEL] Checking IndexedDB cache...");
-                const cachedModel = await tf.loadLayersModel(INDEXEDDB_URL);
+                const cachedModel = await tf.loadGraphModel(INDEXEDDB_URL);
                 const cachedClasses = localStorage.getItem("agrigrow_class_names");
                 
                 if (cachedClasses) {
@@ -315,7 +364,7 @@ export async function loadOfflineModel(onProgress) {
             const bustUrl = `${NETWORK_URL}?v=${MODEL_VERSION}`;
             console.log(`⏳ [OFFLINE MODEL] Fetching from network: ${bustUrl}`);
             
-            const networkModel = await tf.loadLayersModel(bustUrl, {
+            const networkModel = await tf.loadGraphModel(bustUrl, {
                 fetchOptions: { cache: "no-cache" },
                 onProgress: (fraction) => {
                     const downloadProgress = 0.05 + (fraction * 0.85);
@@ -324,7 +373,7 @@ export async function loadOfflineModel(onProgress) {
             });
             
             onProgress?.(0.92);
-            const classRes = await fetch(`/model/class_names.json?v=${MODEL_VERSION}`, { cache: "no-cache" });
+            const classRes = await fetch(`/models/plant-disease/class_names.json?v=${MODEL_VERSION}`, { cache: "no-cache" });
             if (!classRes.ok) {
                 throw new Error(`Class names download failed (HTTP ${classRes.status})`);
             }

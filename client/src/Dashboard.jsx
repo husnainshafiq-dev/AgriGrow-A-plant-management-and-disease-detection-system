@@ -213,6 +213,7 @@ export default function Dashboard({ onBack }) {
     const [error, setError] = useState(null);
     const [panelTab, setPanelTab] = useState("field"); // field | weather | ai | scan | saved
     const [panelOpen, setPanelOpen] = useState(true);
+    const [panelHeight, setPanelHeight] = useState(null);
 
     /* ── Search State ──────────────────────────────────────── */
     const [searchQuery, setSearchQuery] = useState("");
@@ -1061,12 +1062,44 @@ export default function Dashboard({ onBack }) {
             </div>
 
             {/* ── PANEL SECTION ────────────────────────────── */}
-            <div className={`dash-panel ${panelOpen ? "open" : "collapsed"}`}>
+            <div 
+                className={`dash-panel ${panelOpen ? "open" : "collapsed"}`}
+                style={{ height: panelHeight ? `${panelHeight}px` : "" }}
+            >
                 {/* Panel toggle (mobile) */}
                 <button
                     className="dash-panel-toggle"
-                    onClick={() => setPanelOpen(!panelOpen)}
+                    style={{ touchAction: 'none' }}
+                    onPointerDown={(e) => {
+                        if (window.innerWidth > 900) return;
+                        e.currentTarget.setPointerCapture(e.pointerId);
+                    }}
+                    onPointerMove={(e) => {
+                        if (window.innerWidth > 900 || !e.currentTarget.hasPointerCapture(e.pointerId)) return;
+                        
+                        const newHeight = window.innerHeight - e.clientY;
+                        if (newHeight < 150) {
+                            setPanelOpen(false);
+                            setPanelHeight(null);
+                        } else if (newHeight > window.innerHeight - 100) {
+                            setPanelHeight(window.innerHeight - 100);
+                            setPanelOpen(true);
+                        } else {
+                            setPanelHeight(newHeight);
+                            setPanelOpen(true);
+                        }
+                    }}
+                    onPointerUp={(e) => {
+                        if (window.innerWidth > 900) return;
+                        e.currentTarget.releasePointerCapture(e.pointerId);
+                    }}
+                    onClick={() => {
+                        // Toggle if they just clicked without dragging much
+                        setPanelOpen(!panelOpen);
+                        setPanelHeight(null);
+                    }}
                 >
+                    <div style={{ width: '40px', height: '4px', background: 'rgba(255,255,255,0.2)', borderRadius: '2px', position: 'absolute', top: '4px', left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }} />
                     {panelOpen ? "▼" : "▲"} Control Panel
                 </button>
 

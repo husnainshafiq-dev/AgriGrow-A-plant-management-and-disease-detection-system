@@ -1,6 +1,8 @@
 const asyncHandler = require("express-async-handler");
 const User = require("../models/User");
 const Disease = require("../models/Disease");
+const Question = require("../models/Question");
+const Advisory = require("../models/Advisory");
 const { AppError } = require("../middleware/errorHandler");
 const { sendSuccess } = require("../utils/apiResponse");
 
@@ -63,9 +65,101 @@ const updateDiseaseReport = asyncHandler(async (req, res, next) => {
     sendSuccess(res, 200, "Disease report updated", { report });
 });
 
+const listQueries = asyncHandler(async (req, res) => {
+    const questions = await Question.find({})
+        .populate("user", "name email")
+        .sort({ createdAt: -1 })
+        .limit(200)
+        .lean();
+
+    const advisories = await Advisory.find({})
+        .populate("user", "name email")
+        .sort({ createdAt: -1 })
+        .limit(200)
+        .lean();
+
+    const formattedQuestions = questions.map((q) => ({
+        _id: q._id,
+        type: "question",
+        title: q.title,
+        body: q.body,
+        category: q.category || "General",
+        user: q.user,
+        createdAt: q.createdAt,
+        status: q.status || "open",
+        kept: q.status === "kept" || q.status === "resolved",
+    }));
+
+    const formattedAdvisories = advisories.map((a) => ({
+        _id: a._id,
+        type: "advisory",
+        title: a.query,
+        body: a.response ? a.response.slice(0, 200) + "..." : "",
+        category: a.category || "general",
+        user: a.user,
+        createdAt: a.createdAt,
+        status: a.kept ? "kept" : "advisory",
+        kept: !!a.kept,
+    }));
+
+    const queries = [...formattedQuestions, ...formattedAdvisories].sort(
+        (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
+
+    sendSuccess(res, 200, "Queries retrieved", { queries });
+});
+
+const updateQueryStatus = asyncHandler(async (req, res, next) => {
+    const { id } = req.params;
+    const { type, kept, status } = req.body;
+
+    if (type === "question" || (!type && await Question.findById(id))) {
+        const q = await Question.findById(id);
+        if (q) {
+            q.status = kept ? "kept" : (status || "open");
+            await q.save();
+            return sendSuccess(res, 200, "Query updated", { query: q });
+        }
+    }
+
+    if (type === "advisory" || (!type && await Advisory.findById(id))) {
+        const a = await Advisory.findById(id);
+        if (a) {
+            a.kept = kept === true;
+            await a.save();
+            return sendSuccess(res, 200, "Advisory updated", { advisory: a });
+        }
+    }
+
+    return next(new AppError("Query not found", 404));
+});
+
+const deleteQuery = asyncHandler(async (req, res, next) => {
+    const { id } = req.params;
+    const { type } = req.query;
+
+    let deleted = null;
+    if (type === "question") {
+        deleted = await Question.findByIdAndDelete(id);
+    } else if (type === "advisory") {
+        deleted = await Advisory.findByIdAndDelete(id);
+    } else {
+        deleted = (await Question.findByIdAndDelete(id)) || (await Advisory.findByIdAndDelete(id));
+    }
+
+    if (!deleted) {
+        return next(new AppError("Query not found", 404));
+    }
+
+    sendSuccess(res, 200, "Query deleted successfully");
+});
+
 module.exports = {
     listUsers,
     updateUser,
     listDiseaseReports,
     updateDiseaseReport,
+    listQueries,
+    updateQueryStatus,
+    deleteQuery,
 };

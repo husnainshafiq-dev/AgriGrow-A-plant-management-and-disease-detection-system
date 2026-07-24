@@ -7,7 +7,7 @@
     "scripts": {
         "dev": "nodemon server.js",
         "start": "node server.js",
-        "seed": "node ../scripts/seed-db.js",
+        "seed": "node scripts/seed-db.js",
         "test": "jest --detectOpenHandles"
     },
     "dependencies": {

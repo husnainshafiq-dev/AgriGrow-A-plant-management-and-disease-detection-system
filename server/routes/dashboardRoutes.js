@@ -80,7 +80,7 @@ const optionalAuth = (req, _res, next) => {
 // -----------------------------------------------------------
 const analysisLimiter = rateLimit({
     windowMs: 2 * 60 * 1000, // 2 minutes
-    max: 5,
+    max: process.env.NODE_ENV === "development" ? 500 : 10,
     message: {
         success: false,
         error: "Too many AI analysis requests. Please wait before trying again.",

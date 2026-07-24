@@ -5,6 +5,7 @@ import "./AdminDashboard.css";
 const TABS = [
     { id: "overview", label: "Overview", icon: "📊" },
     { id: "users", label: "Users", icon: "👤" },
+    { id: "queries", label: "Queries", icon: "❓" },
     { id: "blog", label: "Blog Posts", icon: "📝" },
     { id: "forum", label: "Forum", icon: "💬" },
     { id: "diseases", label: "Disease Reports", icon: "🦠" },
@@ -16,8 +17,9 @@ export default function AdminDashboard() {
     const [loading, setLoading] = useState(true);
     const [notice, setNotice] = useState("");
 
-    const [stats, setStats] = useState({ users: 0, blogPosts: 0, forumThreads: 0, diseaseReports: 0 });
+    const [stats, setStats] = useState({ users: 0, queries: 0, blogPosts: 0, forumThreads: 0, diseaseReports: 0 });
     const [users, setUsers] = useState([]);
+    const [queries, setQueries] = useState([]);
     const [blogPosts, setBlogPosts] = useState([]);
     const [forumThreads, setForumThreads] = useState([]);
     const [forumReplies, setForumReplies] = useState([]);
@@ -47,14 +49,16 @@ export default function AdminDashboard() {
     const loadAll = useCallback(async () => {
         setLoading(true);
         try {
-            const [usersData, blogData, forumData, diseaseData] = await Promise.all([
+            const [usersData, queriesData, blogData, forumData, diseaseData] = await Promise.all([
                 api("/api/admin/users"),
+                api("/api/admin/queries").catch(() => ({ queries: [] })),
                 api("/api/blog/admin/posts"),
                 api("/api/forum/admin/moderation"),
                 api("/api/admin/disease-reports"),
             ]);
 
             const userList = usersData.users || [];
+            const queryList = queriesData.queries || [];
             const blogList = blogData.posts || [];
             const threadList = forumData.threads || [];
             const replyList = forumData.replies || [];
@@ -62,6 +66,7 @@ export default function AdminDashboard() {
             const diseaseList = diseaseData.reports || [];
 
             setUsers(userList);
+            setQueries(queryList);
             setBlogPosts(blogList);
             setForumThreads(threadList);
             setForumReplies(replyList);
@@ -69,6 +74,7 @@ export default function AdminDashboard() {
             setDiseaseReports(diseaseList);
             setStats({
                 users: userList.length,
+                queries: queryList.length,
                 blogPosts: blogList.length,
                 forumThreads: threadList.length,
                 diseaseReports: diseaseList.length,
@@ -83,6 +89,28 @@ export default function AdminDashboard() {
     useEffect(() => { loadAll(); }, [loadAll]);
 
     /* ── Actions ────────────────────────────────────────────── */
+
+    const toggleKeepQuery = async (id, type, currentKept) => {
+        try {
+            await api(`/api/admin/queries/${id}`, {
+                method: "PATCH",
+                body: JSON.stringify({ type, kept: !currentKept }),
+            });
+            flash(!currentKept ? "Query marked as kept." : "Query un-kept.");
+            await loadAll();
+        } catch (err) { flash(err.message); }
+    };
+
+    const deleteQuery = async (id, type) => {
+        if (!window.confirm("Are you sure you want to delete this query?")) return;
+        try {
+            await api(`/api/admin/queries/${id}?type=${type}`, {
+                method: "DELETE",
+            });
+            flash("Query deleted successfully.");
+            await loadAll();
+        } catch (err) { flash(err.message); }
+    };
 
     const moderatePost = async (id, status) => {
         try {
@@ -168,7 +196,7 @@ export default function AdminDashboard() {
             <header className="admin-header">
                 <div className="admin-header-left">
                     <h1>Admin Dashboard</h1>
-                    <p>Manage users, content, and system health</p>
+                    <p>Manage users, content, queries, and system health</p>
                 </div>
                 <button className="admin-refresh-btn" onClick={loadAll} disabled={loading}>
                     {loading ? "Loading..." : "Refresh All"}
@@ -186,6 +214,9 @@ export default function AdminDashboard() {
                     >
                         <span className="tab-icon">{tab.icon}</span>
                         <span className="tab-label">{tab.label}</span>
+                        {tab.id === "queries" && queries.length > 0 && (
+                            <span className="tab-badge">{queries.length}</span>
+                        )}
                         {tab.id === "blog" && blogPosts.length > 0 && (
                             <span className="tab-badge">{blogPosts.length}</span>
                         )}
@@ -201,10 +232,13 @@ export default function AdminDashboard() {
 
             <main className="admin-content">
                 {activeTab === "overview" && (
-                    <OverviewTab stats={stats} users={users} blogPosts={blogPosts} diseaseReports={diseaseReports} />
+                    <OverviewTab stats={stats} users={users} queries={queries} blogPosts={blogPosts} diseaseReports={diseaseReports} />
                 )}
                 {activeTab === "users" && (
                     <UsersTab users={users} onToggle={toggleUserActive} />
+                )}
+                {activeTab === "queries" && (
+                    <QueriesTab queries={queries} onToggleKeep={toggleKeepQuery} onDelete={deleteQuery} />
                 )}
                 {activeTab === "blog" && (
                     <BlogTab posts={blogPosts} onApprove={(id) => moderatePost(id, "approved")} onReject={(id) => moderatePost(id, "rejected")} />
@@ -230,15 +264,15 @@ export default function AdminDashboard() {
 /* ================================================================
    OVERVIEW TAB
    ================================================================ */
-function OverviewTab({ stats, users, blogPosts, diseaseReports }) {
+function OverviewTab({ stats, users, queries, blogPosts, diseaseReports }) {
     const pendingPosts = blogPosts.filter((p) => p.status === "pending").length;
-    const activeUsers = users.filter((u) => u.isActive).length;
     const unresolvedDiseases = diseaseReports.filter((r) => !r.resolved).length;
 
     return (
         <div className="admin-overview">
             <div className="stats-grid">
                 <StatCard icon="👤" label="Total Users" value={stats.users} color="#3b82f6" />
+                <StatCard icon="❓" label="User Queries" value={stats.queries} color="#10b981" />
                 <StatCard icon="📝" label="Blog Posts" value={stats.blogPosts} color="#f59e0b" sub={`${pendingPosts} pending`} />
                 <StatCard icon="💬" label="Forum Threads" value={stats.forumThreads} color="#8b5cf6" />
                 <StatCard icon="🦠" label="Disease Reports" value={stats.diseaseReports} color="#ef4444" sub={`${unresolvedDiseases} unresolved`} />
@@ -263,20 +297,18 @@ function OverviewTab({ stats, users, blogPosts, diseaseReports }) {
                 </div>
 
                 <div className="overview-card">
-                    <h3>Pending Blog Posts</h3>
+                    <h3>Recent User Queries</h3>
                     <div className="overview-list">
-                        {blogPosts.filter((p) => p.status === "pending").slice(0, 5).map((p) => (
-                            <div className="overview-item" key={p._id}>
+                        {queries.slice(0, 5).map((q) => (
+                            <div className="overview-item" key={q._id}>
                                 <div>
-                                    <strong>{p.title}</strong>
-                                    <small>By {p.authorName || "Unknown"} · {new Date(p.createdAt).toLocaleDateString()}</small>
+                                    <strong>{q.title}</strong>
+                                    <small>By {q.user?.name || q.user?.email || "Anonymous"} · {new Date(q.createdAt).toLocaleDateString()}</small>
                                 </div>
-                                <span className="status-badge pending">Pending</span>
+                                <span className={`status-badge ${q.kept ? "approved" : "pending"}`}>{q.kept ? "Kept" : "Open"}</span>
                             </div>
                         ))}
-                        {!blogPosts.filter((p) => p.status === "pending").length && (
-                            <p className="empty-text">No pending posts.</p>
-                        )}
+                        {!queries.length && <p className="empty-text">No queries submitted yet.</p>}
                     </div>
                 </div>
             </div>
@@ -357,6 +389,95 @@ function UsersTab({ users, onToggle }) {
                         {!filtered.length && <tr><td colSpan="6" className="empty-text">No users found.</td></tr>}
                     </tbody>
                 </table>
+            </div>
+        </div>
+    );
+}
+
+/* ================================================================
+   QUERIES TAB
+   ================================================================ */
+function QueriesTab({ queries, onToggleKeep, onDelete }) {
+    const [search, setSearch] = useState("");
+    const [filterType, setFilterType] = useState("all");
+
+    const filtered = queries.filter((q) => {
+        const matchesSearch =
+            q.title?.toLowerCase().includes(search.toLowerCase()) ||
+            q.body?.toLowerCase().includes(search.toLowerCase()) ||
+            q.user?.name?.toLowerCase().includes(search.toLowerCase()) ||
+            q.user?.email?.toLowerCase().includes(search.toLowerCase());
+        const matchesType = filterType === "all" || q.type === filterType;
+        return matchesSearch && matchesType;
+    });
+
+    return (
+        <div className="admin-section">
+            <div className="section-header">
+                <h2>User Queries Moderation</h2>
+                <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                    <div className="filter-group">
+                        <button
+                            className={`filter-btn ${filterType === "all" ? "active" : ""}`}
+                            onClick={() => setFilterType("all")}
+                        >
+                            All ({queries.length})
+                        </button>
+                        <button
+                            className={`filter-btn ${filterType === "question" ? "active" : ""}`}
+                            onClick={() => setFilterType("question")}
+                        >
+                            Questions
+                        </button>
+                        <button
+                            className={`filter-btn ${filterType === "advisory" ? "active" : ""}`}
+                            onClick={() => setFilterType("advisory")}
+                        >
+                            Advisories
+                        </button>
+                    </div>
+                    <input
+                        className="admin-search"
+                        placeholder="Search queries..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                    />
+                </div>
+            </div>
+
+            <div className="card-grid">
+                {filtered.map((q) => (
+                    <div className="admin-card" key={q._id}>
+                        <div className="card-header">
+                            <span className={`status-badge ${q.kept ? "approved" : "pending"}`}>
+                                {q.kept ? "Kept" : (q.status || "Open")}
+                            </span>
+                            <small>{new Date(q.createdAt).toLocaleDateString()}</small>
+                        </div>
+                        <h3>{q.title}</h3>
+                        <p className="card-excerpt">{q.body?.slice(0, 180)}{q.body?.length > 180 ? "..." : ""}</p>
+                        <div className="card-meta">
+                            <span>User: {q.user?.name || q.user?.email || "Anonymous"}</span>
+                            <span>Category: {q.category}</span>
+                            <span>Type: {q.type}</span>
+                        </div>
+                        <div className="card-actions">
+                            <button
+                                className={`action-btn ${q.kept ? "deactivate" : "approve"}`}
+                                onClick={() => onToggleKeep(q._id, q.type, q.kept)}
+                            >
+                                {q.kept ? "Un-keep" : "Keep Query"}
+                            </button>
+                            <button
+                                className="action-btn reject"
+                                onClick={() => onDelete(q._id, q.type)}
+                            >
+                                Delete
+                            </button>
+                        </div>
+                    </div>
+                ))}
+                {!filtered.length && <p className="empty-text">No user queries match your search or filter.</p>}
             </div>
         </div>
     );

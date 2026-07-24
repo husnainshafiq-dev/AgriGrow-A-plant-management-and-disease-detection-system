@@ -50,6 +50,12 @@ Thumbs.db
 .ipynb_checkpoints/
 *.ipynb
 
+# Downloaded model artifacts
+downloads/
+*.onnx
+*.pth
+*.pdf
+
 # Temp & misc
 tmp/
 .node_repl_history

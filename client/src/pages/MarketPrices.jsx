@@ -14,7 +14,8 @@ export default function MarketPrices() {
     const [loading, setLoading] = useState(true);
 
     // Filters
-    const [selectedCrop, setSelectedCrop] = useState("wheat");
+    const [selectedCrop, setSelectedCrop] = useState("all");
+    const [graphCrop, setGraphCrop] = useState("wheat");
     const [selectedProvince, setSelectedProvince] = useState("all");
     const [selectedMandi, setSelectedMandi] = useState("all");
     const [priceHistory, setPriceHistory] = useState([]);
@@ -68,10 +69,10 @@ export default function MarketPrices() {
     };
 
     const fetchHistory = async () => {
-        if (!selectedCrop) return;
+        const cropToFetch = graphCrop || "wheat";
         setHistoryLoading(true);
         try {
-            let url = `/api/market/prices/crop/${selectedCrop}?days=30`;
+            let url = `/api/market/prices/crop/${cropToFetch}?days=30`;
             if (selectedProvince !== "all") url += `&province=${selectedProvince}`;
             if (selectedMandi !== "all") url += `&market=${encodeURIComponent(selectedMandi)}`;
 
@@ -93,7 +94,7 @@ export default function MarketPrices() {
 
     useEffect(() => {
         fetchHistory();
-    }, [selectedCrop, selectedProvince, selectedMandi]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [graphCrop, selectedProvince, selectedMandi]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleReportPriceSubmit = async (e) => {
         e.preventDefault();
@@ -163,9 +164,10 @@ export default function MarketPrices() {
     };
 
     const filteredPrices = prices.filter(p => {
+        const matchesCrop = selectedCrop === "all" || p.cropName?.toLowerCase() === selectedCrop.toLowerCase();
         const matchesProvince = selectedProvince === "all" || p.province === selectedProvince;
         const matchesMandi = selectedMandi === "all" || p.market === selectedMandi;
-        return matchesProvince && matchesMandi;
+        return matchesCrop && matchesProvince && matchesMandi;
     });
 
     return (
@@ -287,13 +289,29 @@ export default function MarketPrices() {
                 <div className="market-filters glass-panel">
                     <div className="filter-group">
                         <label>Filter Crop</label>
-                        <select value={selectedCrop} onChange={(e) => setSelectedCrop(e.target.value)}>
+                        <select value={selectedCrop} onChange={(e) => {
+                            const val = e.target.value;
+                            setSelectedCrop(val);
+                            if (val !== "all") {
+                                setGraphCrop(val);
+                            }
+                        }}>
+                            <option value="all">All Crops</option>
                             {crops.length > 0 ? (
                                 crops.map((c, i) => (
                                     <option key={i} value={c}>{c.toUpperCase()}</option>
                                 ))
                             ) : (
-                                <option value="wheat">WHEAT</option>
+                                <>
+                                    <option value="wheat">WHEAT</option>
+                                    <option value="cotton">COTTON</option>
+                                    <option value="rice">RICE</option>
+                                    <option value="sugarcane">SUGARCANE</option>
+                                    <option value="maize">MAIZE</option>
+                                    <option value="potato">POTATO</option>
+                                    <option value="onion">ONION</option>
+                                    <option value="tomato">TOMATO</option>
+                                </>
                             )}
                         </select>
                     </div>
@@ -324,7 +342,7 @@ export default function MarketPrices() {
                 <div className="price-chart-card glass-panel">
                     <div className="chart-header">
                         <h3>Price Fluctuation History</h3>
-                        <span className="crop-details-lbl">{selectedCrop.toUpperCase()} history (Last 30 days)</span>
+                        <span className="crop-details-lbl">{graphCrop.toUpperCase()} history (Last 30 days)</span>
                     </div>
 
                     {historyLoading ? (

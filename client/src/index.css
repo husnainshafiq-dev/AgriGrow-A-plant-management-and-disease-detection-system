@@ -61,6 +61,19 @@ h1, h2, h3, h4, h5, h6 {
     min-height: 100vh;
 }
 
+/* Footer Styles */
+.landing-footer {
+    margin: 20px;
+    padding: 20px 24px;
+}
+
+@media (max-width: 900px) {
+    .landing-footer {
+        margin: 8px;
+        padding: 10px 12px;
+    }
+}
+
 /* Utilities */
 .glass-panel {
     background: var(--surface);

@@ -4,7 +4,7 @@ export default function Footer({ isOnline, isModelLoaded }) {
     const { t } = useLanguage();
 
     return (
-        <footer className="landing-footer glass-panel" style={{ margin: "20px", padding: "20px 24px" }}>
+        <footer className="landing-footer glass-panel">
             <div className="footer-content" style={{ textAlign: "center" }}>
                 <div className="footer-logo" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", marginBottom: "10px" }}>
                     <span className="logo-icon">🌿</span>

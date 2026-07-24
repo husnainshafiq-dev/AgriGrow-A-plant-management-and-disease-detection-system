@@ -4,10 +4,10 @@ import {
 } from "./offlineModelMeta";
 
 const CACHE_NAME = "tfjs-model-cache";
-const MODEL_URL = `/model/model.json?v=${OFFLINE_MODEL_VERSION}`;
-const CLASS_NAMES_URL = `/model/class_names.json?v=${OFFLINE_MODEL_VERSION}`;
-// model.json + class names + three weight shards for version 2.2.1.
-const MODEL_DOWNLOAD_BYTES = 10_654_564;
+const MODEL_URL = `/models/plant-disease/model.json?v=${OFFLINE_MODEL_VERSION}`;
+const CLASS_NAMES_URL = `/models/plant-disease/class_names.json?v=${OFFLINE_MODEL_VERSION}`;
+// model.json + class names + weight shard for mobile model.
+const MODEL_DOWNLOAD_BYTES = 2_310_103;
 
 async function responseSize(response) {
     const headerSize = Number(response.headers.get("content-length"));

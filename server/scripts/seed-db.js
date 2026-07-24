@@ -10,12 +10,12 @@
 
 const mongoose = require("mongoose");
 const path = require("path");
-require("dotenv").config({ path: path.join(__dirname, "..", "server", ".env") });
+require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 
 // Import models
-const User = require("../server/models/User");
-const Farm = require("../server/models/Farm");
-const Crop = require("../server/models/Crop");
+const User = require("../models/User");
+const Farm = require("../models/Farm");
+const Crop = require("../models/Crop");
 
 const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/agrigrow";
 
@@ -27,7 +27,7 @@ const sampleUsers = [
         name: "Demo Farmer",
         email: "demo@agrigrow.com",
         password: "password123",
-        role: "user",
+        role: "farmer",
         location: "Karnataka, India",
     },
     {
@@ -121,7 +121,7 @@ const sampleCrops = [
         },
         expectedYield: { value: 30000, unit: "kg" },
         expectedRevenue: 12000,
-        status: "planted",
+        status: "growing",
     },
 ];
 
