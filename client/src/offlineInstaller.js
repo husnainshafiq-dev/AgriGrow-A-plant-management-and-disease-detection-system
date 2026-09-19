@@ -7,7 +7,7 @@ const CACHE_NAME = "tfjs-model-cache";
 const MODEL_URL = `/models/plant-disease/model.json?v=${OFFLINE_MODEL_VERSION}`;
 const CLASS_NAMES_URL = `/models/plant-disease/class_names.json?v=${OFFLINE_MODEL_VERSION}`;
 // model.json + class names + weight shard for mobile model.
-const MODEL_DOWNLOAD_BYTES = 2_310_103;
+const MODEL_DOWNLOAD_BYTES = 2_351_870;
 
 async function responseSize(response) {
     const headerSize = Number(response.headers.get("content-length"));

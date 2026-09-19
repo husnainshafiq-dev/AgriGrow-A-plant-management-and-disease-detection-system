@@ -23,6 +23,7 @@ ml-service/__pycache__/
 ml-service/*.pyc
 ml-service/.venv/
 ml-service/venv/
+.venv/
 
 # ML model files (large — use Git LFS or download separately)
 ml-service/models/*.h5
@@ -50,12 +51,21 @@ Thumbs.db
 .ipynb_checkpoints/
 *.ipynb
 
-# Downloaded model artifacts
-downloads/
+# Downloaded model artifacts (ignore raw downloads, keep the active ONNX model)
+downloads/*
+!downloads/latest-model/
+downloads/latest-model/*
 *.onnx
+!downloads/latest-model/mobilenet_v2_47_classes.onnx
 *.pth
 *.pdf
 
 # Temp & misc
 tmp/
 .node_repl_history
+
+# Documentation & internal files to exclude
+docs/review.md
+*Defense*
+*defense*
+

@@ -8,16 +8,12 @@
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
 
-# --- ML / Deep Learning ---
-tensorflow==2.18.0
+# --- ML / Inference ---
+onnxruntime>=1.20.0
 numpy>=1.24.0,<2.0
-protobuf<5.0.0
-ml-dtypes>=0.4.0,<0.5.0
-
 
 # --- Image Processing ---
 Pillow>=10.0.0
 
 # --- Utilities ---
 python-multipart>=0.0.9      # Required by FastAPI for file uploads
-tf-keras~=2.18.0             # Legacy Keras compatibility

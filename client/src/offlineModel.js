@@ -29,210 +29,282 @@ const getState = () => _global.__AGRIGROW_STATE__;
 
 /**
  * Disease descriptions and recommendations for offline use.
- * Mirrors the data in predict_server.py, extended for all 28 classes.
+ * Extended for all 47 classes from the MobileNetV2 model.
  */
 const DISEASE_INFO = {
-    Aphid: {
+    aphid: {
         description:
             "Aphids are small sap-sucking insects that colonise leaves and stems, causing yellowing, curling, and stunted growth.",
         recommendation:
             "Spray with neem oil or insecticidal soap. Introduce ladybugs as biological control. Remove heavily infested parts.",
     },
-    "Black Rust": {
+    black_rust: {
         description:
             "Black (stem) rust is caused by Puccinia graminis. Dark reddish-brown to black pustules appear on stems and leaves of wheat.",
         recommendation:
             "Plant resistant varieties. Apply fungicides (propiconazole or tebuconazole) at first sign. Remove volunteer wheat plants.",
     },
-    Blast: {
+    blast: {
         description:
             "Rice blast is caused by Magnaporthe oryzae. Diamond-shaped lesions with grey centres and dark borders appear on leaves.",
         recommendation:
             "Use blast-resistant rice varieties. Apply fungicides (tricyclazole). Avoid excess nitrogen fertilisation.",
     },
-    Blight: {
+    blight: {
         description:
             "Blight causes rapid browning and death of plant tissues, typically affecting leaves, stems, and flowers.",
         recommendation:
             "Remove infected plants promptly. Apply appropriate fungicides. Ensure good air circulation and avoid overhead watering.",
     },
-    "Brown Rust": {
+    brown_rust: {
         description:
             "Brown (leaf) rust is caused by Puccinia triticina. Orange-brown pustules scattered on the upper surface of wheat leaves.",
         recommendation:
             "Use resistant cultivars. Apply foliar fungicides at early onset. Monitor fields regularly during heading stage.",
     },
-    "Common Root Rot": {
+    common_root_rot: {
         description:
             "Caused by Bipolaris sorokiniana. Causes dark brown discoloration of the sub-crown internode and roots of wheat.",
         recommendation:
             "Rotate crops with non-cereal crops. Use seed treatments. Avoid deep sowing and maintain good soil drainage.",
     },
-    Common_Rust: {
+    common_rust: {
         description:
             "Common rust of corn is caused by Puccinia sorghi. Small, circular to elongate, cinnamon-brown pustules on both leaf surfaces.",
         recommendation:
             "Plant resistant hybrids. Apply fungicides if infection occurs before tasselling. Most hybrids have adequate resistance.",
     },
-    Early_Blight: {
+    cotton_bacterial_blight: {
+        description:
+            "Caused by Xanthomonas citri pv. malvacearum. Angular, water-soaked spots on leaves that turn brown/black, with black arm symptoms on stems.",
+        recommendation:
+            "Plant resistant varieties. Use acid-delinted certified seed. Apply copper-based sprays. Practice crop rotation.",
+    },
+    cotton_curl_virus: {
+        description:
+            "Cotton leaf curl virus (CLCuV) is transmitted by whitefly. Causes upward or downward curling, thickening of leaf veins, and stunted growth.",
+        recommendation:
+            "Control whitefly populations with insecticides or sticky traps. Plant CLCuV-resistant varieties. Remove infected plants early.",
+    },
+    cotton_fusarium_wilt: {
+        description:
+            "Caused by Fusarium oxysporum f. sp. vasinfectum. Wilting, yellowing, and browning of leaves, with vascular discoloration in cut stems.",
+        recommendation:
+            "Plant resistant varieties. Practice long crop rotations (3+ years). Avoid waterlogged conditions. Use biological controls (Trichoderma).",
+    },
+    cotton_healthy: {
+        description:
+            "The cotton plant appears healthy with no visible signs of disease or pest damage.",
+        recommendation:
+            "Continue regular care — proper irrigation, fertilisation, and integrated pest monitoring.",
+    },
+    early_blight: {
         description:
             'Caused by Alternaria solani. Dark, concentric "target-like" rings appear on older leaves.',
         recommendation:
             "Apply fungicides (chlorothalonil or mancozeb). Remove infected foliage. Rotate crops and use resistant varieties.",
     },
-    "Fusarium Head Blight": {
+    fusarium_head_blight: {
         description:
             "Caused by Fusarium graminearum. Bleached spikelets and pinkish mold on wheat heads. Produces mycotoxins in grain.",
         recommendation:
             "Plant moderately resistant varieties. Apply fungicides at flowering. Rotate with non-host crops. Test grain for mycotoxins.",
     },
-    Gray_Leaf_Spot: {
+    gray_leaf_spot: {
         description:
             "Caused by Cercospora zeae-maydis. Rectangular, grey-tan lesions run parallel to corn leaf veins.",
         recommendation:
             "Use resistant hybrids. Rotate crops. Tillage of corn residue reduces inoculum. Fungicides can help in severe cases.",
     },
-    Healthy: {
+    healthy: {
         description: "The plant appears healthy with no visible signs of disease.",
         recommendation:
             "Continue regular care — proper watering, fertilisation, and pest monitoring.",
     },
-    Late_Blight: {
+    late_blight: {
         description:
             "Caused by Phytophthora infestans. Large, irregular, water-soaked lesions that spread rapidly.",
         recommendation:
             "Apply systemic fungicides immediately. Destroy infected plants. Avoid overhead irrigation and ensure good airflow.",
     },
-    "Leaf Blight": {
+    leaf_blight: {
         description:
             "Leaf blight causes large, elongated, brownish lesions on leaves, often starting from leaf tips.",
         recommendation:
             "Remove and destroy infected leaves. Apply foliar fungicides. Practice crop rotation and balanced fertilisation.",
     },
-    Pepper__bell___Bacterial_spot: {
+    mango_anthracnose: {
         description:
-            "Bacterial spot is caused by Xanthomonas bacteria. Small, water-soaked lesions appear on leaves, eventually turning dark brown and necrotic.",
+            "Caused by Colletotrichum gloeosporioides. Black, sunken spots on leaves, flowers and fruit; blossom blight and fruit rot.",
         recommendation:
-            "Remove and destroy infected plants. Apply copper-based bactericides. Use disease-free seeds and practice crop rotation.",
+            "Apply copper-based or mancozeb fungicides during flowering. Prune to improve air circulation. Remove fallen debris.",
     },
-    Pepper__bell___healthy: {
-        description: "The plant appears healthy with no visible signs of disease.",
-        recommendation:
-            "Continue regular watering, fertilisation, and monitoring for early signs of pests or disease.",
-    },
-    Potato___Early_blight: {
+    mango_bacterial_canker: {
         description:
-            'Caused by Alternaria solani. Dark, concentric "target-like" rings appear on older leaves.',
+            "Caused by Xanthomonas citri pv. mangiferaeindicae. Raised, dark lesions oozing bacterial exudate on stems, leaves and fruit.",
         recommendation:
-            "Apply fungicides (chlorothalonil or mancozeb). Remove infected foliage. Rotate crops and use resistant varieties.",
+            "Prune and destroy infected branches. Apply copper-based bactericides. Avoid overhead irrigation. Use disease-free nursery stock.",
     },
-    Potato___Late_blight: {
+    mango_cutting_weevil: {
         description:
-            "Caused by Phytophthora infestans. Large, irregular, water-soaked lesions that spread rapidly.",
+            "Mango cutting weevils bore into shoots, causing wilting and die-back of young branches.",
         recommendation:
-            "Apply systemic fungicides immediately. Destroy infected plants. Avoid overhead irrigation and ensure good airflow.",
+            "Collect and destroy fallen fruit containing larvae. Apply insecticides during peak adult activity. Maintain orchard hygiene.",
     },
-    Potato___healthy: {
-        description: "The plant appears healthy with no visible signs of disease.",
-        recommendation:
-            "Maintain proper watering and nutrient management. Scout regularly for early disease symptoms.",
-    },
-    Tomato_Bacterial_spot: {
+    mango_die_back: {
         description:
-            "Caused by Xanthomonas species. Small, dark, raised spots appear on leaves, stems, and fruit.",
+            "Caused by Lasiodiplodia theobromae. Drying and darkening of twigs starting from tips, progressing downward with gum exudation.",
         recommendation:
-            "Use copper sprays preventatively. Avoid working with wet plants. Use certified disease-free transplants.",
+            "Prune infected branches 15 cm below visible symptoms. Apply copper oxychloride paste to cut ends. Improve tree vigor.",
     },
-    Tomato_Early_blight: {
+    mango_gall_midge: {
         description:
-            "Caused by Alternaria solani. Concentric ring bull's-eye lesions on lower, older leaves first.",
+            "Gall midges lay eggs in young leaves/flowers, causing abnormal swellings (galls) that distort growth.",
         recommendation:
-            "Remove affected leaves. Apply appropriate fungicides. Mulch around plants and avoid overhead watering.",
+            "Remove and destroy galled plant parts. Apply systemic insecticides early in the season. Maintain orchard sanitation.",
     },
-    Tomato_Late_blight: {
+    mango_healthy: {
         description:
-            "Caused by Phytophthora infestans. Large, dark, water-soaked patches with white mold on the underside.",
+            "The mango plant appears healthy with no visible signs of disease or pest damage.",
         recommendation:
-            "Apply fungicide promptly. Remove and destroy all infected tissue. Improve air circulation around plants.",
+            "Continue regular care — proper irrigation, fertilisation, and integrated pest management.",
     },
-    Tomato_Leaf_Mold: {
+    mango_powdery_mildew: {
         description:
-            "Caused by Passalora fulva. Yellow spots on upper leaf surfaces with olive-green to grey mold beneath.",
+            "Caused by Oidium mangiferae. White, powdery fungal growth on flowers, young leaves, and fruit; causes flower/fruit drop.",
         recommendation:
-            "Improve ventilation in greenhouses. Reduce humidity. Apply fungicides and remove infected leaves.",
+            "Apply sulphur-based or systemic fungicides at bud-break. Prune to improve air circulation. Avoid excess nitrogen.",
     },
-    Tomato_Septoria_leaf_spot: {
+    mango_sooty_mould: {
         description:
-            "Caused by Septoria lycopersici. Numerous small, circular spots with dark borders and grey centres.",
+            "Black, sooty fungal coating on leaf surfaces, growing on honeydew excreted by sap-sucking insects (hoppers, mealybugs).",
         recommendation:
-            "Remove lower infected leaves. Apply fungicides. Practice crop rotation and avoid overhead irrigation.",
+            "Control the underlying insect pest. Wash leaves with mild soapy water. Improve air circulation by pruning.",
     },
-    Tomato_Spider_mites_Two_spotted_spider_mite: {
-        description:
-            "Tiny spider mites feed on leaf cells, causing stippling, yellowing, and fine webbing on undersides.",
-        recommendation:
-            "Spray with miticides or insecticidal soap. Increase humidity. Introduce predatory mites as biological control.",
-    },
-    Tomato__Target_Spot: {
-        description:
-            "Caused by Corynespora cassiicola. Brown lesions with concentric rings on leaves, stems, and fruit.",
-        recommendation:
-            "Apply fungicides. Remove infected plant debris. Space plants for good air circulation.",
-    },
-    Tomato__Tomato_YellowLeaf__Curl_Virus: {
-        description:
-            "A viral disease transmitted by whiteflies. Leaves curl upward, turn yellow, and plants become stunted.",
-        recommendation:
-            "Control whitefly populations with insecticides or sticky traps. Use virus-resistant varieties. Remove infected plants.",
-    },
-    Tomato__Tomato_mosaic_virus: {
-        description:
-            "A highly contagious viral disease causing mottled light/dark green patterns on leaves, sometimes with curling.",
-        recommendation:
-            "Remove and destroy infected plants. Disinfect tools. Use resistant varieties and avoid tobacco products near plants.",
-    },
-    Tomato_healthy: {
-        description: "The plant appears healthy with no visible signs of disease.",
-        recommendation:
-            "Keep up regular care — proper watering, fertilisation, and pest monitoring.",
-    },
-    Mildew: {
+    mildew: {
         description:
             "Powdery or downy mildew appears as white, flour-like fungal growth on leaves and stems, causing yellowing and premature leaf drop.",
         recommendation:
             "Apply sulfur- or copper-based fungicides. Improve air circulation around plants and avoid wetting foliage when watering.",
     },
-    Mite: {
+    mite: {
         description:
             "Mites are tiny arachnid pests that pierce plant tissue to suck sap, causing yellow stippling, leaf bronzing, and fine webbing.",
         recommendation:
             "Spray with miticides, neem oil, or insecticidal soap. Introduce predatory mites as natural biological controls.",
     },
-    Septoria: {
+    pepper_bell_bacterial_spot: {
+        description:
+            "Bacterial spot is caused by Xanthomonas bacteria. Small, water-soaked lesions appear on leaves, eventually turning dark brown and necrotic.",
+        recommendation:
+            "Remove and destroy infected plants. Apply copper-based bactericides. Use disease-free seeds and practice crop rotation.",
+    },
+    pepper_bell_healthy: {
+        description: "The plant appears healthy with no visible signs of disease.",
+        recommendation:
+            "Continue regular watering, fertilisation, and monitoring for early signs of pests or disease.",
+    },
+    potato_early_blight: {
+        description:
+            'Caused by Alternaria solani. Dark, concentric "target-like" rings appear on older leaves.',
+        recommendation:
+            "Apply fungicides (chlorothalonil or mancozeb). Remove infected foliage. Rotate crops and use resistant varieties.",
+    },
+    potato_late_blight: {
+        description:
+            "Caused by Phytophthora infestans. Large, irregular, water-soaked lesions that spread rapidly.",
+        recommendation:
+            "Apply systemic fungicides immediately. Destroy infected plants. Avoid overhead irrigation and ensure good airflow.",
+    },
+    potato_healthy: {
+        description: "The plant appears healthy with no visible signs of disease.",
+        recommendation:
+            "Maintain proper watering and nutrient management. Scout regularly for early disease symptoms.",
+    },
+    septoria: {
         description:
             "Septoria leaf blotch causes oval, greyish-brown spots with small black speck-like fruiting bodies (pycnidia) on leaves.",
         recommendation:
             "Apply foliar fungicides early. Practice crop rotation and remove infected plant debris to reduce overwintering fungi.",
     },
-    Smut: {
+    smut: {
         description:
             "Smut is a fungal disease replacing plant tissue (heads or leaves) with dark, powdery masses of fungal spores.",
         recommendation:
             "Use certified disease-free treated seeds. Plant resistant crop varieties and rogue out infected heads before spore release.",
     },
-    "Stem fly": {
+    stem_fly: {
         description:
             "Stem fly larvae bore into plant stems, causing wilting, stem lodging, and drying of central leaves (dead hearts).",
         recommendation:
             "Apply systemic insecticides early in the season. Use yellow sticky traps and practice proper field sanitation.",
     },
-    "Tan spot": {
+    tan_spot: {
         description:
             "Tan spot (Pyrenophora tritici-repentis) causes small, tan to brown oval spots with dark centres and yellow halos on leaves.",
         recommendation:
-            "Use resistant cultivars, apply foliar triazole/strucbilurin fungicides, and practice stubble management or crop rotation.",
+            "Use resistant cultivars, apply foliar triazole/strobilurin fungicides, and practice stubble management or crop rotation.",
     },
-    "Yellow Rust": {
+    tomato_bacterial_spot: {
+        description:
+            "Caused by Xanthomonas species. Small, dark, raised spots appear on leaves, stems, and fruit.",
+        recommendation:
+            "Use copper sprays preventatively. Avoid working with wet plants. Use certified disease-free transplants.",
+    },
+    tomato_early_blight: {
+        description:
+            "Caused by Alternaria solani. Concentric ring bull's-eye lesions on lower, older leaves first.",
+        recommendation:
+            "Remove affected leaves. Apply appropriate fungicides. Mulch around plants and avoid overhead watering.",
+    },
+    tomato_late_blight: {
+        description:
+            "Caused by Phytophthora infestans. Large, dark, water-soaked patches with white mold on the underside.",
+        recommendation:
+            "Apply fungicide promptly. Remove and destroy all infected tissue. Improve air circulation around plants.",
+    },
+    tomato_leaf_mold: {
+        description:
+            "Caused by Passalora fulva. Yellow spots on upper leaf surfaces with olive-green to grey mold beneath.",
+        recommendation:
+            "Improve ventilation in greenhouses. Reduce humidity. Apply fungicides and remove infected leaves.",
+    },
+    tomato_septoria_leaf_spot: {
+        description:
+            "Caused by Septoria lycopersici. Numerous small, circular spots with dark borders and grey centres.",
+        recommendation:
+            "Remove lower infected leaves. Apply fungicides. Practice crop rotation and avoid overhead irrigation.",
+    },
+    tomato_spider_mites_two_spotted_spider_mite: {
+        description:
+            "Tiny spider mites feed on leaf cells, causing stippling, yellowing, and fine webbing on undersides.",
+        recommendation:
+            "Spray with miticides or insecticidal soap. Increase humidity. Introduce predatory mites as biological control.",
+    },
+    tomato_target_spot: {
+        description:
+            "Caused by Corynespora cassiicola. Brown lesions with concentric rings on leaves, stems, and fruit.",
+        recommendation:
+            "Apply fungicides. Remove infected plant debris. Space plants for good air circulation.",
+    },
+    tomato_yellow_leaf_curl_virus: {
+        description:
+            "A viral disease transmitted by whiteflies. Leaves curl upward, turn yellow, and plants become stunted.",
+        recommendation:
+            "Control whitefly populations with insecticides or sticky traps. Use virus-resistant varieties. Remove infected plants.",
+    },
+    tomato_mosaic_virus: {
+        description:
+            "A highly contagious viral disease causing mottled light/dark green patterns on leaves, sometimes with curling.",
+        recommendation:
+            "Remove and destroy infected plants. Disinfect tools. Use resistant varieties and avoid tobacco products near plants.",
+    },
+    tomato_healthy: {
+        description: "The plant appears healthy with no visible signs of disease.",
+        recommendation:
+            "Keep up regular care — proper watering, fertilisation, and pest monitoring.",
+    },
+    yellow_rust: {
         description:
             "Yellow (stripe) rust, caused by Puccinia striiformis, forms bright yellow pustules arranged in prominent linear stripes on leaves.",
         recommendation:
@@ -244,41 +316,53 @@ const DISEASE_INFO = {
  * Human-readable class names for display.
  */
 const DISPLAY_NAMES = {
-    Aphid: "Aphid Infestation",
-    "Black Rust": "Black (Stem) Rust",
-    Blast: "Rice Blast",
-    Blight: "Blight",
-    "Brown Rust": "Brown (Leaf) Rust",
-    "Common Root Rot": "Common Root Rot",
-    Common_Rust: "Common Rust (Corn)",
-    Early_Blight: "Early Blight",
-    "Fusarium Head Blight": "Fusarium Head Blight",
-    Gray_Leaf_Spot: "Gray Leaf Spot (Corn)",
-    Healthy: "Healthy Plant",
-    Late_Blight: "Late Blight",
-    "Leaf Blight": "Leaf Blight",
-    Mildew: "Powdery / Downy Mildew",
-    Mite: "Mite Infestation",
-    Septoria: "Septoria Leaf Blotch",
-    Smut: "Smut Disease",
-    "Stem fly": "Stem Fly Damage",
-    "Tan spot": "Tan Spot",
-    "Yellow Rust": "Yellow (Stripe) Rust",
-    Pepper__bell___Bacterial_spot: "Pepper Bell — Bacterial Spot",
-    Pepper__bell___healthy: "Pepper Bell — Healthy",
-    Potato___Early_blight: "Potato — Early Blight",
-    Potato___Late_blight: "Potato — Late Blight",
-    Potato___healthy: "Potato — Healthy",
-    Tomato_Bacterial_spot: "Tomato — Bacterial Spot",
-    Tomato_Early_blight: "Tomato — Early Blight",
-    Tomato_Late_blight: "Tomato — Late Blight",
-    Tomato_Leaf_Mold: "Tomato — Leaf Mold",
-    Tomato_Septoria_leaf_spot: "Tomato — Septoria Leaf Spot",
-    Tomato_Spider_mites_Two_spotted_spider_mite: "Tomato — Spider Mites",
-    Tomato__Target_Spot: "Tomato — Target Spot",
-    Tomato__Tomato_YellowLeaf__Curl_Virus: "Tomato — Yellow Leaf Curl Virus",
-    Tomato__Tomato_mosaic_virus: "Tomato — Mosaic Virus",
-    Tomato_healthy: "Tomato — Healthy",
+    aphid: "Aphid Infestation",
+    black_rust: "Black (Stem) Rust",
+    blast: "Rice Blast",
+    blight: "Blight",
+    brown_rust: "Brown (Leaf) Rust",
+    common_root_rot: "Common Root Rot",
+    common_rust: "Common Rust (Corn)",
+    cotton_bacterial_blight: "Cotton — Bacterial Blight",
+    cotton_curl_virus: "Cotton — Curl Virus",
+    cotton_fusarium_wilt: "Cotton — Fusarium Wilt",
+    cotton_healthy: "Cotton — Healthy",
+    early_blight: "Early Blight",
+    fusarium_head_blight: "Fusarium Head Blight",
+    gray_leaf_spot: "Gray Leaf Spot (Corn)",
+    healthy: "Healthy Plant",
+    late_blight: "Late Blight",
+    leaf_blight: "Leaf Blight",
+    mango_anthracnose: "Mango — Anthracnose",
+    mango_bacterial_canker: "Mango — Bacterial Canker",
+    mango_cutting_weevil: "Mango — Cutting Weevil",
+    mango_die_back: "Mango — Die Back",
+    mango_gall_midge: "Mango — Gall Midge",
+    mango_healthy: "Mango — Healthy",
+    mango_powdery_mildew: "Mango — Powdery Mildew",
+    mango_sooty_mould: "Mango — Sooty Mould",
+    mildew: "Powdery / Downy Mildew",
+    mite: "Mite Infestation",
+    pepper_bell_bacterial_spot: "Pepper Bell — Bacterial Spot",
+    pepper_bell_healthy: "Pepper Bell — Healthy",
+    potato_early_blight: "Potato — Early Blight",
+    potato_healthy: "Potato — Healthy",
+    potato_late_blight: "Potato — Late Blight",
+    septoria: "Septoria Leaf Blotch",
+    smut: "Smut Disease",
+    stem_fly: "Stem Fly Damage",
+    tan_spot: "Tan Spot",
+    tomato_bacterial_spot: "Tomato — Bacterial Spot",
+    tomato_early_blight: "Tomato — Early Blight",
+    tomato_healthy: "Tomato — Healthy",
+    tomato_late_blight: "Tomato — Late Blight",
+    tomato_leaf_mold: "Tomato — Leaf Mold",
+    tomato_mosaic_virus: "Tomato — Mosaic Virus",
+    tomato_septoria_leaf_spot: "Tomato — Septoria Leaf Spot",
+    tomato_spider_mites_two_spotted_spider_mite: "Tomato — Spider Mites",
+    tomato_target_spot: "Tomato — Target Spot",
+    tomato_yellow_leaf_curl_virus: "Tomato — Yellow Leaf Curl Virus",
+    yellow_rust: "Yellow (Stripe) Rust",
 };
 
 /* ── Public API ─────────────────────────────────────────────── */
@@ -304,7 +388,7 @@ let loadingPromise = null;
  * Pre-load the TF.js model and class names.
  * Uses IndexedDB to cache the model topology and weights.
  */
-const MODEL_VERSION = "2.2.1"; // Increment this to force-refresh all clients
+const MODEL_VERSION = "3.0.0"; // Bumped for 47-class MobileNetV2 model
 
 export async function loadOfflineModel(onProgress) {
     const state = getState();
@@ -462,26 +546,37 @@ export async function predictOffline(imageElement) {
         }
     }
 
-    // Pre-process exactly as MobileNetV2 expects
+    // Pre-process with ImageNet normalisation
+    // The new MobileNetV2 model expects:  (pixel / 255.0 - mean) / std
+    const IMAGENET_MEAN = [0.485, 0.456, 0.406];
+    const IMAGENET_STD = [0.229, 0.224, 0.225];
+
     const tensor = tf.tidy(() => {
-        return tf.browser
+        const img = tf.browser
             .fromPixels(imageElement)
             .resizeBilinear([224, 224])
             .toFloat()
-            .div(127.5)
-            .sub(1.0)
-            .expandDims(0);
+            .div(255.0);
+
+        const mean = tf.tensor1d(IMAGENET_MEAN);
+        const std = tf.tensor1d(IMAGENET_STD);
+
+        return img.sub(mean).div(std).expandDims(0);
     });
 
-    const predictions = state.model.predict(tensor);
-    const probabilities = await predictions.data();
+    const rawOutput = state.model.predict(tensor);
+
+    // Apply softmax since the model outputs raw logits
+    const probabilities = tf.tidy(() => tf.softmax(rawOutput));
+    const values = await probabilities.data();
 
     // Clean up GPU memory
     tensor.dispose();
-    predictions.dispose();
+    rawOutput.dispose();
+    probabilities.dispose();
 
     // Rank all classes
-    const ranked = Array.from(probabilities)
+    const ranked = Array.from(values)
         .map((p, i) => ({ probability: p * 100, index: i }))
         .sort((a, b) => b.probability - a.probability);
 
