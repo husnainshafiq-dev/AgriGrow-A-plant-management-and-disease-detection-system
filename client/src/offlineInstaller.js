@@ -3,10 +3,10 @@ import {
     OFFLINE_MODEL_VERSION_KEY,
 } from "./offlineModelMeta";
 
-const CACHE_NAME = "tfjs-model-cache";
+export const CACHE_NAME = "tfjs-model-cache-v4";
 const MODEL_URL = `/models/plant-disease/model.json?v=${OFFLINE_MODEL_VERSION}`;
 const CLASS_NAMES_URL = `/models/plant-disease/class_names.json?v=${OFFLINE_MODEL_VERSION}`;
-// model.json + class names + weight shard for mobile model.
+// model.json + class names + weight shard for 47-class model.
 const MODEL_DOWNLOAD_BYTES = 2_351_870;
 
 async function responseSize(response) {

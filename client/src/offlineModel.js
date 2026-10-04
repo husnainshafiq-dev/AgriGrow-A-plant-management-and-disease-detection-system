@@ -417,31 +417,29 @@ export const FALLBACK_CLASS_NAMES = [
     "yellow_rust"
 ];
 
+export const CACHE_NAME = "tfjs-model-cache-v4";
+const MODEL_VERSION = "4.0.0"; // 47-class MobileNetV2 model
+
+// Automatically purge outdated/mismatched placeholder caches
+if (typeof window !== "undefined" && typeof caches !== "undefined") {
+    ["tfjs-model-cache", "tfjs-model-cache-v1", "tfjs-model-cache-v2", "tfjs-model-cache-v3"].forEach((old) => {
+        caches.delete(old).catch(() => {});
+    });
+}
+
 /* ── Custom Fetch for TF.js Model Assets ────────────────────── */
 export async function customModelFetch(input, init) {
     const urlStr = typeof input === "string" ? input : input?.url || "";
     if (typeof caches !== "undefined") {
         try {
-            const cache = await caches.open("tfjs-model-cache");
-            // 1. Direct match with and without search params
+            const cache = await caches.open(CACHE_NAME);
             let match = await cache.match(input, { ignoreSearch: true }) || await cache.match(input);
             if (!match && urlStr) {
-                // 2. Match pure pathname (e.g. /models/plant-disease/model.json)
                 const parsed = new URL(urlStr, window.location.origin);
                 match = await cache.match(parsed.pathname, { ignoreSearch: true }) || await cache.match(parsed.pathname);
-                
-                // 3. Match filename in case it was cached under a slightly different directory prefix
-                if (!match) {
-                    const filename = parsed.pathname.split("/").pop();
-                    const keys = await cache.keys();
-                    const matchedKey = keys.find((k) => k.url.includes(filename));
-                    if (matchedKey) {
-                        match = await cache.match(matchedKey);
-                    }
-                }
             }
             if (match && (match.ok || match.status === 200)) {
-                return match;
+                return match.clone();
             }
         } catch (cErr) {
             console.warn("⚠️ [OFFLINE MODEL] Cache API check note:", cErr);
@@ -459,24 +457,10 @@ export function isModelLoaded() {
         state.classNames = FALLBACK_CLASS_NAMES;
     }
     const loaded = !!(state.model && state.classNames && state.classNames.length > 0);
-    if (!loaded) {
-        console.warn("⚠️ [OFFLINE MODEL] isModelLoaded() check:", { 
-            hasModel: !!state.model, 
-            hasClasses: !!state.classNames,
-            classCount: state.classNames?.length || 0,
-            hasLoadingPromise: !!state.loadingPromise
-        });
-    }
     return loaded;
 }
 
 let loadingPromise = null;
-
-/**
- * Pre-load the TF.js model and class names.
- * Uses IndexedDB to cache the model topology and weights.
- */
-const MODEL_VERSION = "3.0.0"; // 47-class MobileNetV2 model
 
 export async function loadOfflineModel(onProgress) {
     const state = getState();
@@ -501,6 +485,16 @@ export async function loadOfflineModel(onProgress) {
             await tf.ready();
             onProgress?.(0.05);
 
+            // Version check: if cached version in localStorage is older than 4.0.0, clear IndexedDB
+            const storedVersion = localStorage.getItem("agrigrow_model_version");
+            if (storedVersion && storedVersion !== MODEL_VERSION) {
+                console.warn(`🔄 Version mismatch (${storedVersion} vs ${MODEL_VERSION}). Refreshing IndexedDB...`);
+                try {
+                    await tf.io.removeModel(INDEXEDDB_URL);
+                    localStorage.removeItem("agrigrow_class_names");
+                } catch (e) {}
+            }
+
             // 1. Try to load from IndexedDB first
             try {
                 console.log("⏳ [OFFLINE MODEL] Checking IndexedDB cache...");
@@ -521,19 +515,31 @@ export async function loadOfflineModel(onProgress) {
                     return state.model;
                 }
             } catch (cacheErr) {
-                console.log("ℹ️ [OFFLINE MODEL] IndexedDB miss or error. Falling back to Cache API / Network...", cacheErr?.message || cacheErr);
+                console.log("ℹ️ [OFFLINE MODEL] IndexedDB miss/stale. Purging and trying fresh load...", cacheErr?.message);
+                try { await tf.io.removeModel(INDEXEDDB_URL); } catch (e) {}
             }
 
-            // 2. Load from Cache API / Network via customModelFetch
-            console.log(`⏳ [OFFLINE MODEL] Fetching via customModelFetch: ${NETWORK_URL}`);
-            
-            const networkModel = await tf.loadGraphModel(NETWORK_URL, {
-                fetchFunc: customModelFetch,
-                onProgress: (fraction) => {
-                    const downloadProgress = 0.05 + (fraction * 0.85);
-                    onProgress?.(Math.min(downloadProgress, 0.9));
-                },
-            });
+            // 2. Try loading with customModelFetch (Cache API first, then network)
+            let networkModel = null;
+            try {
+                console.log(`⏳ [OFFLINE MODEL] Fetching model via customModelFetch: ${NETWORK_URL}`);
+                networkModel = await tf.loadGraphModel(NETWORK_URL, {
+                    fetchFunc: customModelFetch,
+                    onProgress: (fraction) => {
+                        const downloadProgress = 0.05 + (fraction * 0.85);
+                        onProgress?.(Math.min(downloadProgress, 0.9));
+                    },
+                });
+            } catch (cacheFetchErr) {
+                console.warn("⚠️ [OFFLINE MODEL] Cache-assisted load failed, attempting direct fetch:", cacheFetchErr.message);
+                // 3. Fallback: Direct clean fetch bypassing cache
+                networkModel = await tf.loadGraphModel(NETWORK_URL, {
+                    onProgress: (fraction) => {
+                        const downloadProgress = 0.05 + (fraction * 0.85);
+                        onProgress?.(Math.min(downloadProgress, 0.9));
+                    },
+                });
+            }
 
             if (!networkModel) {
                 throw new Error("TensorFlow.js could not initialize model from cached or remote source");
@@ -551,27 +557,25 @@ export async function loadOfflineModel(onProgress) {
                     if (classRes.ok) {
                         classes = await classRes.json();
                     }
-                } catch (e) {
-                    console.warn("Class names fetch failed, using fallback list:", e.message);
-                }
+                } catch (e) {}
             }
             if (!classes || !classes.length) {
                 classes = FALLBACK_CLASS_NAMES;
             }
             onProgress?.(1);
 
-            // 3. Set globals immediately
+            // Set state
             state.model = networkModel;
             state.classNames = classes;
             localStorage.setItem("agrigrow_class_names", JSON.stringify(classes));
             localStorage.setItem("agrigrow_model_version", MODEL_VERSION);
 
-            // 4. Save to IndexedDB so all future loads work directly offline
+            // Persist to IndexedDB
             try {
                 await networkModel.save(INDEXEDDB_URL);
                 console.log("✅ [OFFLINE MODEL] Successfully persisted model to IndexedDB.");
             } catch (sErr) {
-                console.warn("⚠️ [OFFLINE MODEL] IndexedDB save warning:", sErr);
+                console.warn("⚠️ [OFFLINE MODEL] IndexedDB save warning:", sErr.message);
             }
 
             const totalTime = ((performance.now() - startTime) / 1000).toFixed(2);

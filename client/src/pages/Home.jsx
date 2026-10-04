@@ -158,12 +158,8 @@ export default function Home({ modelReady, loadingStatus, isOnline, onOfflineMod
         }
     };
     const handleOfflinePredict = async () => {
-        if (!offlineInstalled) {
-            showError(
-                isOnline
-                    ? "Download the offline detector first, then try again."
-                    : "Offline detector is not installed. Connect to the internet to download it."
-            );
+        if (!offlineInstalled && !isOnline) {
+            showError("Offline detector is not installed. Connect to the internet to download it.");
             return;
         }
 
@@ -180,12 +176,13 @@ export default function Home({ modelReady, loadingStatus, isOnline, onOfflineMod
                 console.log(`🧠 [BROWSER FALLBACK] Step 2 done (${((performance.now() - t0) / 1000).toFixed(2)}s). loadedModel=${!!loadedModel}, isModelLoaded=${isModelLoaded()}`);
                 if (!loadedModel || !isModelLoaded()) {
                     console.error("❌ [BROWSER FALLBACK] Model load returned falsy or isModelLoaded still false. Aborting.");
-                    showError("Browser disease model could not load. Please refresh once and try again.");
+                    showError("Browser disease model could not initialize. Please refresh to load the latest update.");
                     return;
                 }
             } else {
                 console.log("🧠 [BROWSER FALLBACK] Step 2/5: Model already loaded, skipping.");
             }
+            setOfflineInstalled(true);
             onOfflineModelReady?.(true);
 
             console.log("🧠 [BROWSER FALLBACK] Step 3/5: Decoding image for inference...");
