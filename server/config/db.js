@@ -43,9 +43,8 @@ const connectDB = async (uri) => {
         logger.info(`✅ MongoDB connected: ${conn.connection.host}`);
     } catch (error) {
         logger.error(`❌ MongoDB connection failed: ${error.message}`);
-        // Exit with failure code — the server cannot function
-        // without a database connection.
-        process.exit(1);
+        console.error(`❌ MongoDB connection failed: ${error.message}`);
+        throw error;
     }
 };
 

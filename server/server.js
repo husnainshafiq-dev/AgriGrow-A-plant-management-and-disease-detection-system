@@ -147,6 +147,17 @@ app.use("/api/market", marketPriceRoutes);
 app.use("/api/questions", questionRoutes);
 app.use("/api/bookmarks", bookmarkRoutes);
 
+// Root & Health check endpoints (no auth required)
+app.get("/", (_req, res) => {
+    res.json({
+        name: "AgriGrow API",
+        status: "online",
+        environment: config.NODE_ENV,
+        timestamp: new Date().toISOString(),
+    });
+});
+app.get("/health", (_req, res) => res.status(200).send("OK"));
+
 // Health check endpoint (no auth required)
 // Checks both backend and ML service status
 const { checkHealth } = require("./services/mlService");
@@ -205,30 +216,55 @@ app.use(errorHandler);
 // 9. Start Server
 // ============================================================
 const startServer = async () => {
-    try {
-        // Connect to MongoDB first
-        await connectDB(config.MONGO_URI);
+    const port = process.env.PORT || config.PORT || 5000;
+    const host = "0.0.0.0";
 
-        // Then start listening
-        app.listen(config.PORT, () => {
-            logger.info("═══════════════════════════════════════════════");
-            logger.info(`🚀 AgriGrow API Server`);
-            logger.info(`   Environment : ${config.NODE_ENV}`);
-            logger.info(`   Port        : ${config.PORT}`);
-            logger.info(`   URL         : http://localhost:${config.PORT}`);
-            logger.info(`   ML Service  : ${config.ML_SERVICE_URL}`);
-            logger.info("═══════════════════════════════════════════════");
-        });
+    // 1. Immediately bind and start listening on 0.0.0.0 so Render detects the port instantly
+    const server = app.listen(port, host, () => {
+        const msg = `🚀 AgriGrow API Server listening on http://${host}:${port} [${config.NODE_ENV}]`;
+        console.log("═══════════════════════════════════════════════");
+        console.log(msg);
+        console.log(`   Host        : ${host}`);
+        console.log(`   Port        : ${port}`);
+        console.log(`   Environment : ${config.NODE_ENV}`);
+        console.log(`   ML Service  : ${config.ML_SERVICE_URL}`);
+        console.log("═══════════════════════════════════════════════");
+        logger.info(msg);
+    });
 
-        // Start the market price cron job (daily AMIS scrape)
-        // Only kicks in once MongoDB is connected so the scraper
-        // can write to the collection without a race condition.
-        const { startMarketPriceCron } = require("./jobs/marketPriceCron");
-        startMarketPriceCron();
-    } catch (error) {
-        logger.error(`Failed to start server: ${error.message}`);
+    server.on("error", (err) => {
+        console.error(`❌ Server port bind error: ${err.message}`);
+        logger.error(`Server port bind error: ${err.message}`);
         process.exit(1);
-    }
+    });
+
+    // 2. Connect to MongoDB asynchronously without blocking port availability
+    const tryConnectDB = async (retries = 5, delay = 5000) => {
+        const maskedUri = (config.MONGO_URI || "").replace(/:\/\/[^:]+:[^@]+@/, "://<credentials>@");
+        for (let i = 1; i <= retries; i++) {
+            try {
+                console.log(`⏳ Connecting to MongoDB at ${maskedUri} (Attempt ${i}/${retries})...`);
+                await connectDB(config.MONGO_URI);
+                console.log(`✅ MongoDB connected successfully!`);
+
+                // Start the market price cron job (daily AMIS scrape)
+                const { startMarketPriceCron } = require("./jobs/marketPriceCron");
+                startMarketPriceCron();
+                return;
+            } catch (error) {
+                console.error(`❌ MongoDB connection attempt ${i} failed: ${error.message}`);
+                logger.error(`Database connection attempt ${i} failed: ${error.message}`);
+                if (i < retries) {
+                    console.log(`⏳ Retrying database connection in ${delay / 1000} seconds...`);
+                    await new Promise((resolve) => setTimeout(resolve, delay));
+                } else {
+                    console.error("❌ Could not connect to MongoDB after multiple attempts. Please check MONGO_URI and IP whitelist (0.0.0.0/0).");
+                }
+            }
+        }
+    };
+
+    tryConnectDB();
 };
 
 // ============================================================
