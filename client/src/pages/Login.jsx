@@ -15,6 +15,8 @@ export default function Login() {
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
+    const [backendUrl, setBackendUrl] = useState(() => (typeof window !== "undefined" ? localStorage.getItem("agrigrow_api_url") || "" : ""));
+    const [savedMsg, setSavedMsg] = useState("");
 
     // Get redirection path from query params, fallback to dashboard
     const params = new URLSearchParams(location.search);
@@ -77,7 +79,45 @@ export default function Login() {
                     </div>
                 )}
 
-                {error && <div className="auth-error">{error}</div>}
+                {error && (
+                    <div className="auth-error">
+                        <div>{error}</div>
+                        {(error.includes("server URL") || error.includes("not found") || error.includes("Cannot reach")) && (
+                            <div style={{ marginTop: "12px", paddingTop: "10px", borderTop: "1px solid rgba(255,255,255,0.2)", textAlign: "left" }}>
+                                <p style={{ fontSize: "12px", marginBottom: "6px", color: "#ffebee" }}>
+                                    💡 <strong>Connect Render Backend:</strong> Paste your Render backend URL below:
+                                </p>
+                                <div style={{ display: "flex", gap: "6px" }}>
+                                    <input
+                                        type="url"
+                                        placeholder="https://agrigrow-api.onrender.com"
+                                        value={backendUrl}
+                                        onChange={(e) => setBackendUrl(e.target.value)}
+                                        style={{ flex: 1, padding: "7px 10px", borderRadius: "6px", border: "1px solid #ddd", color: "#111", fontSize: "12px", background: "#fff" }}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (!backendUrl.trim()) return;
+                                            const clean = backendUrl.trim().replace(/\/$/, "");
+                                            localStorage.setItem("agrigrow_api_url", clean);
+                                            setError("");
+                                            setSavedMsg("Connected! Try logging in now.");
+                                            setTimeout(() => setSavedMsg(""), 5000);
+                                        }}
+                                        style={{ padding: "7px 12px", background: "#2e7d32", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "12px", fontWeight: "bold" }}
+                                    >
+                                        Connect
+                                    </button>
+                                </div>
+                                <p style={{ fontSize: "11px", marginTop: "5px", color: "rgba(255,255,255,0.7)" }}>
+                                    Or set <code>VITE_API_URL</code> in your Vercel Project Settings and redeploy.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                )}
+                {savedMsg && <div style={{ background: "#e8f5e9", color: "#2e7d32", padding: "10px", borderRadius: "8px", marginBottom: "16px", fontSize: "13px", fontWeight: "bold", textAlign: "center" }}>{savedMsg}</div>}
 
                 <form onSubmit={handleSubmit} className="auth-form">
                     <div className="form-group">

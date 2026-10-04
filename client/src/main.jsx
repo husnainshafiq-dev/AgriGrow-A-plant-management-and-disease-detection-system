@@ -5,18 +5,30 @@ import { LanguageProvider } from "./context/LanguageContext";
 import { BookmarkProvider } from "./context/BookmarkContext";
 import App from "./App.jsx";
 import "./index.css";
-// When hosted on Vercel or separate frontend, prepend VITE_API_URL to relative /api and /uploads calls
-const apiBase = (import.meta.env.VITE_API_URL || "").trim().replace(/\/$/, "");
-if (apiBase && typeof window !== "undefined" && window.fetch) {
+// Resolve backend API URL from VITE_API_URL or localStorage
+export const getApiBaseUrl = () => {
+    const envUrl = (import.meta.env.VITE_API_URL || "").trim().replace(/\/$/, "");
+    if (envUrl) return envUrl;
+    if (typeof window !== "undefined") {
+        const stored = (localStorage.getItem("agrigrow_api_url") || "").trim().replace(/\/$/, "");
+        if (stored) return stored;
+    }
+    return "";
+};
+
+if (typeof window !== "undefined" && window.fetch) {
     const originalFetch = window.fetch;
     window.fetch = function (input, init) {
-        if (typeof input === "string") {
-            if (input.startsWith("/api") || input.startsWith("/uploads")) {
-                return originalFetch(`${apiBase}${input}`, init);
-            }
-        } else if (input && typeof input.url === "string") {
-            if (input.url.startsWith("/api") || input.url.startsWith("/uploads")) {
-                return originalFetch(new Request(`${apiBase}${input.url}`, input), init);
+        const apiBase = getApiBaseUrl();
+        if (apiBase) {
+            if (typeof input === "string") {
+                if (input.startsWith("/api") || input.startsWith("/uploads")) {
+                    return originalFetch(`${apiBase}${input}`, init);
+                }
+            } else if (input && typeof input.url === "string") {
+                if (input.url.startsWith("/api") || input.url.startsWith("/uploads")) {
+                    return originalFetch(new Request(`${apiBase}${input.url}`, input), init);
+                }
             }
         }
         return originalFetch(input, init);
