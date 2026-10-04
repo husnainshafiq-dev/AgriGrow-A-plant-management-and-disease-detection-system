@@ -7,13 +7,18 @@ import App from "./App.jsx";
 import "./index.css";
 // Resolve backend API URL from VITE_API_URL or localStorage
 export const getApiBaseUrl = () => {
-    const envUrl = (import.meta.env.VITE_API_URL || "").trim().replace(/\/$/, "");
-    if (envUrl) return envUrl;
-    if (typeof window !== "undefined") {
-        const stored = (localStorage.getItem("agrigrow_api_url") || "").trim().replace(/\/$/, "");
-        if (stored) return stored;
+    let raw = (import.meta.env.VITE_API_URL || "").trim();
+    if (!raw && typeof window !== "undefined") {
+        raw = (localStorage.getItem("agrigrow_api_url") || "").trim();
     }
-    return "";
+    if (!raw) return "";
+
+    // Automatically strip markdown link format [url](url) if pasted accidentally
+    const urlMatch = raw.match(/https?:\/\/[^\s\)\'\"\]]+/i);
+    if (urlMatch) {
+        return urlMatch[0].replace(/\/$/, "");
+    }
+    return raw.replace(/\/$/, "");
 };
 
 if (typeof window !== "undefined" && window.fetch) {
