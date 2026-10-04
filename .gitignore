@@ -67,7 +67,19 @@ downloads/latest-model/*
 tmp/
 .node_repl_history
 
-# Documentation
+# Documentation & reports (local only)
 docs/
+AgriGrow Chapter 3 SRS.*
+AgriGrow Chapter 4 SDD.*
+AgriGrow_FYP_Defense_Document.md
+CODE_ANALYSIS.md
+DEPLOYMENT.md
+DESIGN_ANALYSIS.md
+DESIGN_CODE_GAP_REPORT.md
+DESIGN_QUALITY_ISSUES.md
+DESIGN_TESTCASES.md
+OFFLINE_DETECTION_AND_UI_FIX_REPORT.md
+SRS_SDD_COMPLETION_REPORT.md
+TESTING_INSTRUCTIONS.md
 
 
