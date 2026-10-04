@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
 import LanguageSwitcher from "./LanguageSwitcher";
 import WeatherAlertBadge from "./WeatherAlertBadge";
+import { getAvatarUrl } from "../main";
 import "./Navbar.css";
 
 export default function Navbar({ modelReady, loadingStatus, isOnline, installPrompt, handleInstall }) {
@@ -111,7 +112,7 @@ export default function Navbar({ modelReady, loadingStatus, isOnline, installPro
                                 aria-label="Toggle user profile menu"
                             >
                                 <img
-                                    src={user?.avatar || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop&crop=face"}
+                                    src={getAvatarUrl(user?.avatar) || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop&crop=face"}
                                     alt="User Avatar"
                                     className="nav-avatar-img"
                                     onError={(e) => {

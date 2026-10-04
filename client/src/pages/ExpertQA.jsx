@@ -200,7 +200,7 @@ export default function ExpertQA() {
                     <div className="blob blob-1"></div>
                     <div className="blob blob-2"></div>
                 </div>
-                <div className="qa-content container auth-gate-container">
+                <div className="qa-content auth-gate-container">
                     <div className="auth-gate-card glass-panel">
                         <div className="auth-gate-icon">💬</div>
                         <h2>{t("nav.qa")} — Expert Consultation</h2>
@@ -228,7 +228,7 @@ export default function ExpertQA() {
                 <div className="blob blob-2"></div>
             </div>
 
-            <div className="qa-content container">
+            <div className="qa-content">
                 <div className="qa-header">
                     <div>
                         <h2>{t("qa.title")}</h2>

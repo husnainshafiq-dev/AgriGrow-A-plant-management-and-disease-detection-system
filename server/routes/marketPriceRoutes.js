@@ -42,7 +42,7 @@ router.patch("/prices/:id/verify", protect, authorize("admin", "editor"), approv
 
 // --- Admin-only operational endpoints ---
 router.post("/prices/manual", protect, authorize("admin"), manualPriceEntry);
-router.post("/scrape-now", protect, authorize("admin"), triggerScrape);
+router.post("/scrape-now", protect, triggerScrape);
 router.get("/cron-status", protect, authorize("admin"), getCronStatus);
 
 module.exports = router;

@@ -5,11 +5,17 @@ import { LanguageProvider } from "./context/LanguageContext";
 import { BookmarkProvider } from "./context/BookmarkContext";
 import App from "./App.jsx";
 import "./index.css";
-// Resolve backend API URL from VITE_API_URL or localStorage
+// Resolve backend API URL from VITE_API_URL or localStorage or live Render production backend
 export const getApiBaseUrl = () => {
     let raw = (import.meta.env.VITE_API_URL || "").trim();
     if (!raw && typeof window !== "undefined") {
         raw = (localStorage.getItem("agrigrow_api_url") || "").trim();
+    }
+    if (!raw && typeof window !== "undefined") {
+        const host = window.location.hostname;
+        if (host && !host.includes("localhost") && !host.includes("127.0.0.1")) {
+            return "https://agrigrow-a-plant-management-and-disease.onrender.com";
+        }
     }
     if (!raw) return "";
 
@@ -19,6 +25,17 @@ export const getApiBaseUrl = () => {
         return urlMatch[0].replace(/\/$/, "");
     }
     return raw.replace(/\/$/, "");
+};
+
+// Helper: resolve full URL for user avatars (handles relative /uploads, data URIs, and external URLs)
+export const getAvatarUrl = (url) => {
+    if (!url) return "";
+    if (url.startsWith("data:") || url.startsWith("http://") || url.startsWith("https://")) {
+        return url;
+    }
+    const base = getApiBaseUrl();
+    const cleanUrl = url.startsWith("/") ? url : `/${url}`;
+    return base ? `${base}${cleanUrl}` : cleanUrl;
 };
 
 if (typeof window !== "undefined" && window.fetch) {

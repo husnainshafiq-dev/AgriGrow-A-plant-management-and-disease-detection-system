@@ -1,7 +1,43 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
+import { getAvatarUrl } from "../main";
 import "./Profile.css";
+
+// Helper: resize image on client to compact base64 JPEG (< 30KB) for permanent MongoDB persistence
+function resizeImageToDataUrl(file, maxSize = 256, quality = 0.85) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                let width = img.width;
+                let height = img.height;
+                if (width > height) {
+                    if (width > maxSize) {
+                        height = Math.round((height * maxSize) / width);
+                        width = maxSize;
+                    }
+                } else {
+                    if (height > maxSize) {
+                        width = Math.round((width * maxSize) / height);
+                        height = maxSize;
+                    }
+                }
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL("image/jpeg", quality));
+            };
+            img.onerror = reject;
+            img.src = e.target.result;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
 
 export default function Profile() {
     const { user, authHeaders, updateProfile, updateUser } = useAuth();
@@ -66,9 +102,9 @@ export default function Profile() {
             return;
         }
 
-        // Check file size (max 5 MB)
-        if (file.size > 5 * 1024 * 1024) {
-            setStatusMsg("Image exceeds 5 MB. Please select a smaller photo.");
+        // Check file size (max 8 MB)
+        if (file.size > 8 * 1024 * 1024) {
+            setStatusMsg("Image exceeds 8 MB. Please select a smaller photo.");
             setTimeout(() => setStatusMsg(""), 3000);
             return;
         }
@@ -78,38 +114,34 @@ export default function Profile() {
         reader.onload = (ev) => setAvatarPreview(ev.target.result);
         reader.readAsDataURL(file);
 
-        // Upload immediately to server
+        // Upload and save photo
         setUploadingAvatar(true);
-        setStatusMsg("Uploading photo...");
-
-        const fd = new FormData();
-        fd.append("avatar", file);
+        setStatusMsg("Saving profile photo...");
 
         try {
-            const res = await fetch("/api/auth/profile/avatar", {
+            // Compress image to compact base64 JPEG (< 25KB)
+            const compressedBase64 = await resizeImageToDataUrl(file);
+            setAvatarPreview(compressedBase64);
+
+            // 1. Direct MongoDB update via updateProfile (persists permanently in Atlas across Render restarts)
+            await updateProfile({ avatar: compressedBase64 });
+            updateUser((prev) => ({ ...prev, avatar: compressedBase64 }));
+
+            // 2. Also send to avatar file upload endpoint if online
+            const fd = new FormData();
+            fd.append("avatar", file);
+            fetch("/api/auth/profile/avatar", {
                 method: "POST",
                 headers: authHeaders(),
                 credentials: "include",
                 body: fd
-            });
-            const data = await res.json();
-            if (res.ok) {
-                const newAvatarUrl = data.data?.avatar || data.avatar;
-                setStatusMsg("Profile photo updated successfully!");
-                setAvatarPreview(newAvatarUrl);
-                if (data.data?.user) {
-                    updateUser(data.data.user);
-                } else if (newAvatarUrl) {
-                    updateUser((prev) => ({ ...prev, avatar: newAvatarUrl }));
-                }
-                setAvatarFile(null);
-            } else {
-                setStatusMsg(data.error || "Failed to upload image");
-                setAvatarPreview(user?.avatar || "");
-            }
+            }).catch(() => {});
+
+            setStatusMsg("Profile photo updated successfully!");
+            setAvatarFile(null);
         } catch (err) {
-            console.error("Avatar upload failed:", err);
-            setStatusMsg("Upload failed due to connection error.");
+            console.error("Avatar save failed:", err);
+            setStatusMsg("Failed to save photo: " + (err.message || "Connection error"));
             setAvatarPreview(user?.avatar || "");
         } finally {
             setUploadingAvatar(false);
@@ -177,7 +209,7 @@ export default function Profile() {
                         <div className="avatar-card glass-panel text-center">
                             <div className="avatar-wrapper">
                                 <img
-                                    src={avatarPreview || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face"}
+                                    src={getAvatarUrl(avatarPreview) || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face"}
                                     alt="Farmer Avatar"
                                     className={`profile-avatar-img ${uploadingAvatar ? "uploading" : ""}`}
                                     onError={(e) => {

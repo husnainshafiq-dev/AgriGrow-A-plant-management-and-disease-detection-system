@@ -1,12 +1,13 @@
 .qa-page {
-    min-height: 85vh;
-    padding: 40px 20px;
+    min-height: calc(100vh - 120px);
+    padding: 24px 20px 60px;
     position: relative;
     overflow: hidden;
 }
 
 .qa-content {
-    max-width: 1200px;
+    max-width: 1240px;
+    width: 100%;
     margin: 0 auto;
     z-index: 2;
     position: relative;
@@ -16,7 +17,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 30px;
+    margin-bottom: 24px;
     flex-wrap: wrap;
     gap: 16px;
 }
@@ -37,11 +38,12 @@
 
 .qa-main-grid {
     display: grid;
-    grid-template-columns: 1fr 1.3fr;
+    grid-template-columns: 460px 1fr;
     gap: 24px;
+    align-items: start;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
     .qa-main-grid {
         grid-template-columns: 1fr;
     }
@@ -173,12 +175,13 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 80px 40px;
+    padding: 48px 24px;
     text-align: center;
     color: #94a3b8;
     gap: 16px;
-    min-height: 400px;
+    min-height: 280px;
     border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
 }
 
 .select-prompt h3 {
@@ -195,6 +198,7 @@
 .question-detail-view {
     padding: 24px;
     border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
 }
 
 .q-detail-header {

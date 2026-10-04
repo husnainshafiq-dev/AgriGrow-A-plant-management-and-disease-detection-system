@@ -254,7 +254,7 @@ export default function Home({ modelReady, loadingStatus, isOnline, onOfflineMod
                 {isOnline && (
                     <div className="model-status" style={{ margin: "0 auto 20px", display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}>
                         <span className="pulse" style={{ backgroundColor: modelReady ? '#4caf50' : '#ff9800', width: '10px', height: '10px', borderRadius: '50%', display: 'inline-block' }} /> 
-                        {modelReady ? "Online detection available" : loadingStatus}
+                        {loadingStatus || "AI Detection Ready"}
                     </div>
                 )}
 

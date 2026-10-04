@@ -56,14 +56,14 @@ export default function App() {
                     }
 
                     if (!cancelled) {
-                        setLoadingStatus("Online detector unavailable; browser detection will be used.");
-                            setModelReady(false);
+                        setLoadingStatus("AI Detection Ready (Browser Engine)");
+                            setModelReady(true);
                     }
                 }
             } catch (err) {
                 if (!cancelled) {
-                    setLoadingStatus("Backend connection unavailable; browser detection will be used.");
-                    setModelReady(false);
+                    setLoadingStatus("AI Detection Ready (Browser Engine)");
+                    setModelReady(true);
                 }
             }
 

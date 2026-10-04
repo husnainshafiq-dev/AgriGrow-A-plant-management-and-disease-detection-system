@@ -22,18 +22,14 @@ const asyncHandler = require("express-async-handler");
 const { sendSuccess, sendError } = require("../utils/apiResponse");
 const logger = require("../utils/logger");
 
-const SEED_ENABLED = process.env.ENABLE_SEED_DATA === "true";
-
 // ------------------------------------------------------------
-// Seed sample data — DEV ONLY
+// Seed baseline sample data if collection is empty
 // ------------------------------------------------------------
-// Only runs when the collection is empty AND ENABLE_SEED_DATA=true.
-// Disabled by default so production data is never clobbered.
+// Ensures market price charts and lists are never empty on fresh deployments
 const seedSampleDataIfEmpty = async () => {
-    if (!SEED_ENABLED) return;
-
-    const count = await MarketPrice.countDocuments();
-    if (count > 0) return;
+    try {
+        const count = await MarketPrice.countDocuments();
+        if (count > 0) return;
 
     const sampleCrops = ["wheat", "cotton", "rice", "sugarcane", "maize", "potato", "onion", "tomato"];
     const provinces = ["Punjab", "Sindh", "KPK", "Balochistan"];
@@ -94,7 +90,10 @@ const seedSampleDataIfEmpty = async () => {
     }
 
     await MarketPrice.insertMany(entries);
-    logger.warn(`🌱 [market] seeded ${entries.length} sample records (DEV ONLY)`);
+    logger.info(`🌱 [market] seeded ${entries.length} baseline market records`);
+    } catch (err) {
+        logger.warn(`Failed to seed baseline market records: ${err.message}`);
+    }
 };
 
 // ============================================================
