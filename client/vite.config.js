@@ -36,12 +36,12 @@ export default defineConfig({
                 maximumFileSizeToCacheInBytes: 15 * 1024 * 1024,
                 runtimeCaching: [
                     {
-                        urlPattern: /\/model\/.*/i,
+                        urlPattern: /\/models?\/.*/i,
                         handler: "CacheFirst",
                         options: {
                             cacheName: "tfjs-model-cache",
                             expiration: {
-                                maxEntries: 20,
+                                maxEntries: 50,
                                 maxAgeSeconds: 60 * 60 * 24 * 30,
                             },
                         },

@@ -99,12 +99,18 @@ export async function downloadOfflineAssets(onProgress) {
 
     const shardPaths = (manifest.weightsManifest || [])
         .flatMap((group) => group.paths || [])
-        .map((path) => new URL(path, `${window.location.origin}/model/`).pathname);
-    const assetUrls = [CLASS_NAMES_URL, ...shardPaths];
+        .map((path) => `/models/plant-disease/${path}`);
+    
+    // Also include legacy /model/ path so both resolve smoothly
+    const alternateShardPaths = (manifest.weightsManifest || [])
+        .flatMap((group) => group.paths || [])
+        .map((path) => `/model/${path}`);
+
+    const assetUrls = [CLASS_NAMES_URL, `/models/plant-disease/model.json`, ...shardPaths, ...alternateShardPaths];
 
     let downloadedBytes = manifestBuffer.byteLength;
     const report = () => onProgress?.(
-        Math.min(downloadedBytes / MODEL_DOWNLOAD_BYTES, 0.99)
+        Math.min(downloadedBytes / MODEL_DOWNLOAD_BYTES, 0.90)
     );
     const progress = {
         add(bytes) {
@@ -115,14 +121,38 @@ export async function downloadOfflineAssets(onProgress) {
     report();
 
     for (const url of assetUrls) {
-        await cacheWithProgress(cache, url, progress);
+        try {
+            await cacheWithProgress(cache, url, progress);
+        } catch (e) {
+            console.warn(`Optional cache asset download skipped: ${url}`, e.message);
+        }
     }
 
-    const classResponse = await cache.match(CLASS_NAMES_URL);
-    if (!classResponse) throw new Error("Class names were not stored");
-    const classNames = await classResponse.json();
+    // Cache un-busted model.json as well
+    await cache.put(
+        `/models/plant-disease/model.json`,
+        storedResponse(manifestBuffer, manifestResponse.headers, manifestBuffer.byteLength)
+    );
 
-    localStorage.setItem("agrigrow_class_names", JSON.stringify(classNames));
+    let classNames = null;
+    const classResponse = await cache.match(CLASS_NAMES_URL) || await cache.match(`/models/plant-disease/class_names.json`);
+    if (classResponse) {
+        try {
+            classNames = await classResponse.json();
+            localStorage.setItem("agrigrow_class_names", JSON.stringify(classNames));
+        } catch (e) {}
+    }
+
     localStorage.setItem(OFFLINE_MODEL_VERSION_KEY, OFFLINE_MODEL_VERSION);
+    onProgress?.(0.95);
+
+    // Compile and persist model into IndexedDB immediately
+    try {
+        const { loadOfflineModel } = await import("./offlineModel");
+        await loadOfflineModel();
+    } catch (compileErr) {
+        console.warn("⚠️ [OFFLINE INSTALLER] Initial compile note:", compileErr.message);
+    }
+
     onProgress?.(1);
 }
