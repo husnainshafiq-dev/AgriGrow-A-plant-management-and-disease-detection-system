@@ -66,4 +66,7 @@ downloads/latest-model/*
 tmp/
 .node_repl_history
 
+# Documentation
+docs/
+
 
