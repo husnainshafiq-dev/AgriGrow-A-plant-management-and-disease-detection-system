@@ -59,6 +59,7 @@ downloads/*
 downloads/latest-model/*
 *.onnx
 !downloads/latest-model/mobilenet_v2_47_classes.onnx
+!ml-service/models/*.onnx
 *.pth
 *.pdf
 

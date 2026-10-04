@@ -27,6 +27,7 @@ const defaults = {
   PORT: "5000",
   JWT_EXPIRE: "7d",
   ML_SERVICE_URL: "http://localhost:8000",
+  CLIENT_URL: "",
 };
 
 // -----------------------------------------------------------
@@ -60,6 +61,7 @@ module.exports = {
   JWT_SECRET: process.env.JWT_SECRET,
   JWT_EXPIRE: process.env.JWT_EXPIRE,
   ML_SERVICE_URL: process.env.ML_SERVICE_URL,
+  CLIENT_URL: process.env.CLIENT_URL || process.env.CORS_ORIGIN || "",
   GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
   OPENROUTER_MODEL: process.env.OPENROUTER_MODEL,

@@ -57,16 +57,17 @@ logger = logging.getLogger("ml-service")
 # -----------------------------------------------------------
 # Configuration
 # -----------------------------------------------------------
-MODEL_PATH = os.environ.get(
-    "MODEL_PATH",
-    os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        "..",
-        "downloads",
-        "latest-model",
-        "mobilenet_v2_47_classes.onnx",
-    ),
-)
+def resolve_model_path():
+    env_path = os.environ.get("MODEL_PATH")
+    if env_path and os.path.exists(env_path):
+        return env_path
+    local_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "mobilenet_v2_47_classes.onnx")
+    if os.path.exists(local_path):
+        return local_path
+    fallback_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "downloads", "latest-model", "mobilenet_v2_47_classes.onnx")
+    return fallback_path
+
+MODEL_PATH = resolve_model_path()
 IMG_SIZE = (224, 224)
 CONFIDENCE_DECIMAL_PLACES = 2
 TOP_K_PREDICTIONS = 5
