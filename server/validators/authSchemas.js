@@ -90,10 +90,10 @@ const registerSchema = Joi.object({
         }),
 
     role: Joi.string()
-        .valid("farmer", "admin")
+        .valid("farmer")
         .default("farmer")
         .messages({
-            "any.only": "Role must be either 'farmer' or 'admin'",
+            "any.only": "Role must be 'farmer'",
         }),
 });
 

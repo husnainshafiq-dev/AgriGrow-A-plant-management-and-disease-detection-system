@@ -194,8 +194,15 @@ export function AuthProvider({ children }) {
         return data;
     }, [authHeaders]);
 
+    /* ── update user directly in state ────────────── */
+    const updateUser = useCallback((updatedUser) => {
+        setUser((prev) => (typeof updatedUser === "function" ? updatedUser(prev) : { ...prev, ...updatedUser }));
+    }, []);
+
     const value = {
         user,
+        setUser,
+        updateUser,
         token,
         loading,
         isAuthenticated,

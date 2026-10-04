@@ -445,10 +445,9 @@ export default function Dashboard({ onBack }) {
         // Geolocation button
         const geoCtrl = L.control({ position: "bottomright" });
         geoCtrl.onAdd = () => {
-            const div = L.DomUtil.create("div", "leaflet-bar");
+            const div = L.DomUtil.create("div", "leaflet-bar dash-geo-btn");
             div.innerHTML = "📍";
             div.title = "My Location";
-            div.style.cssText = "width:36px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;background:#1a1a2e;color:#fff;border-radius:8px;border:1px solid rgba(255,255,255,0.1);";
             div.onclick = (e) => {
                 e.stopPropagation();
                 if (navigator.geolocation) {
@@ -935,7 +934,8 @@ export default function Dashboard({ onBack }) {
                         {/* Back button */}
                         {onBack && (
                             <button className="dash-ctrl-btn dash-back-btn" onClick={onBack} title="Back to Detector">
-                                ← Back
+                                <span className="dash-back-arrow">←</span>
+                                <span>Back</span>
                             </button>
                         )}
 
@@ -1002,8 +1002,10 @@ export default function Dashboard({ onBack }) {
                                     key={key}
                                     className={`dash-tile-btn ${tileLayer === key ? "active" : ""}`}
                                     onClick={() => setTileLayer(key)}
+                                    title={`${key.charAt(0).toUpperCase() + key.slice(1)} view`}
                                 >
-                                    {key === "satellite" ? "🛰️" : key === "street" ? "🗺️" : "🏔️"}
+                                    <span className="dash-tile-icon">{key === "satellite" ? "🛰️" : key === "street" ? "🗺️" : "🏔️"}</span>
+                                    <span className="dash-tile-label">{key.charAt(0).toUpperCase() + key.slice(1)}</span>
                                 </button>
                             ))}
                         </div>
@@ -1012,18 +1014,19 @@ export default function Dashboard({ onBack }) {
                     {/* Drawing controls */}
                     {!drawingMode ? (
                         <button className="dash-ctrl-btn dash-draw-btn" onClick={startDrawing}>
-                            ✏️ Draw Field Boundary
+                            <span className="dash-draw-icon">✏️</span>
+                            <span>Draw Field Boundary</span>
                         </button>
                     ) : (
                         <div className="dash-draw-controls">
                             <div className="dash-draw-status">
                                 <span className="dash-draw-dot" />
-                                <span>Click map to place points</span>
+                                <span>Click map to place field boundary points</span>
                             </div>
                             <div className="dash-draw-stats">
-                                <span>Points: <strong>{drawingPoints.length}</strong></span>
+                                <span className="dash-stat-badge">Points: <strong>{drawingPoints.length}</strong></span>
                                 {calculatedArea !== null && (
-                                    <span className="dash-draw-area">
+                                    <span className="dash-draw-area dash-stat-badge">
                                         Area: <strong>{calculatedArea.toFixed(2)}</strong>
                                         <select
                                             value={areaUnit}
@@ -1038,13 +1041,13 @@ export default function Dashboard({ onBack }) {
                                 )}
                             </div>
                             <div className="dash-draw-actions">
-                                <button className="dash-ctrl-btn" onClick={undoLastPoint} disabled={drawingPoints.length === 0}>
+                                <button className="dash-ctrl-btn dash-undo-btn" onClick={undoLastPoint} disabled={drawingPoints.length === 0} title="Undo last point">
                                     ↩ Undo
                                 </button>
-                                <button className="dash-ctrl-btn dash-finish-btn" onClick={finishDrawing} disabled={drawingPoints.length < 3}>
+                                <button className="dash-ctrl-btn dash-finish-btn" onClick={finishDrawing} disabled={drawingPoints.length < 3} title="Finish polygon (minimum 3 points)">
                                     ✓ Finish
                                 </button>
-                                <button className="dash-ctrl-btn dash-cancel-btn" onClick={cancelDrawing}>
+                                <button className="dash-ctrl-btn dash-cancel-btn" onClick={cancelDrawing} title="Cancel drawing">
                                     ✕ Cancel
                                 </button>
                             </div>
@@ -1098,9 +1101,13 @@ export default function Dashboard({ onBack }) {
                         setPanelOpen(!panelOpen);
                         setPanelHeight(null);
                     }}
+                    aria-label={panelOpen ? "Collapse control panel" : "Expand control panel"}
                 >
-                    <div style={{ width: '40px', height: '4px', background: 'rgba(255,255,255,0.2)', borderRadius: '2px', position: 'absolute', top: '4px', left: '50%', transform: 'translateX(-50%)', pointerEvents: 'none' }} />
-                    {panelOpen ? "▼" : "▲"} Control Panel
+                    <div className="dash-drag-handle" />
+                    <div className="dash-toggle-inner">
+                        <span className="dash-toggle-title">🌾 Precision Agriculture</span>
+                        <span className="dash-toggle-badge">{panelOpen ? "▼" : "▲"}</span>
+                    </div>
                 </button>
 
                 {/* Panel header */}

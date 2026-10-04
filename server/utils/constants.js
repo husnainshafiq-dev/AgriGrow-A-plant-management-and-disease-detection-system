@@ -6,7 +6,9 @@ module.exports = {
     // User roles
     ROLES: {
         FARMER: "farmer",
+        EDITOR: "editor",
         ADMIN: "admin",
+        SUPERADMIN: "superadmin",
     },
 
     // File upload configuration

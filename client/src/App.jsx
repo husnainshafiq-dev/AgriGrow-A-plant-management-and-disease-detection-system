@@ -220,10 +220,30 @@ export default function App() {
                         } 
                     />
 
-                    {/* Publicly accessible route views */}
-                    <Route path="/market" element={<MarketPrices />} />
-                    <Route path="/qa" element={<ExpertQA />} />
-                    <Route path="/community" element={<Community onBack={() => navigate("/")} />} />
+                    <Route 
+                        path="/market" 
+                        element={
+                            <ProtectedRoute>
+                                <MarketPrices />
+                            </ProtectedRoute>
+                        } 
+                    />
+                    <Route 
+                        path="/qa" 
+                        element={
+                            <ProtectedRoute>
+                                <ExpertQA />
+                            </ProtectedRoute>
+                        } 
+                    />
+                    <Route 
+                        path="/community" 
+                        element={
+                            <ProtectedRoute>
+                                <Community onBack={() => navigate("/")} />
+                            </ProtectedRoute>
+                        } 
+                    />
                 </Routes>
             </div>
 

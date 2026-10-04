@@ -86,7 +86,7 @@ const createThread = asyncHandler(async (req, res, next) => {
 
     const author = getAuthor(req, req.body);
     const slug = await createUniqueSlug(ForumThread, title);
-    const isAdmin = req.user?.role === "admin";
+    const isAdmin = ["superadmin", "admin", "editor"].includes(req.user?.role);
 
     const thread = await ForumThread.create({
         title,
@@ -111,7 +111,6 @@ const addReply = asyncHandler(async (req, res, next) => {
     if (!req.body.body) return next(new AppError("Reply body is required", 400));
 
     const author = getAuthor(req, req.body);
-    const isAdmin = req.user?.role === "admin";
 
     const reply = await ForumReply.create({
         thread: thread._id,
@@ -119,16 +118,14 @@ const addReply = asyncHandler(async (req, res, next) => {
         author: author.userId,
         authorName: author.name,
         authorEmail: author.email,
-        moderationStatus: isAdmin ? "approved" : "pending",
+        moderationStatus: "approved",
     });
 
-    if (reply.moderationStatus === "approved") {
-        thread.replyCount += 1;
-        thread.lastActivityAt = new Date();
-        await thread.save();
-    }
+    thread.replyCount += 1;
+    thread.lastActivityAt = new Date();
+    await thread.save();
 
-    sendSuccess(res, 201, isAdmin ? "Reply posted" : "Reply submitted for moderation", { reply });
+    sendSuccess(res, 201, "Reply posted", { reply });
 });
 
 const upvoteThread = asyncHandler(async (req, res, next) => {
@@ -179,7 +176,7 @@ const markSolved = asyncHandler(async (req, res, next) => {
     if (!thread) return next(new AppError("Forum thread not found", 404));
 
     const canSolve =
-        req.user?.role === "admin" ||
+        ["superadmin", "admin", "editor"].includes(req.user?.role) ||
         (thread.author && req.user?._id && thread.author.toString() === req.user._id.toString());
 
     if (!canSolve) return next(new AppError("Only the thread author or admin can mark a solution", 403));

@@ -70,12 +70,38 @@ const marketPriceSchema = new mongoose.Schema(
         verifiedBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User"
+        },
+        moderationStatus: {
+            type: String,
+            enum: ["pending", "approved", "rejected"],
+            default: "pending"
+        },
+        rejectedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User"
+        },
+        rejectionReason: {
+            type: String,
+            default: ""
         }
     },
     {
         timestamps: true
     }
 );
+
+// Auto-calculate min and max price ranges if not provided or 0
+marketPriceSchema.pre("validate", function (next) {
+    if (this.price && this.price.average) {
+        if (!this.price.min || this.price.min <= 0) {
+            this.price.min = Math.round(this.price.average * 0.95);
+        }
+        if (!this.price.max || this.price.max <= 0) {
+            this.price.max = Math.round(this.price.average * 1.05);
+        }
+    }
+    next();
+});
 
 // Indexes for fast lookup on lists, details, and chart history
 marketPriceSchema.index({ cropName: 1, date: -1 });

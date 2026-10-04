@@ -20,19 +20,137 @@ const listUsers = asyncHandler(async (req, res) => {
     sendSuccess(res, 200, "Users retrieved", { users });
 });
 
+const createUser = asyncHandler(async (req, res, next) => {
+    const { name, email, password, role = "farmer", phone } = req.body;
+
+    if (!name || name.trim().length < 2) {
+        return next(new AppError("Name must be at least 2 characters", 400));
+    }
+    if (!email || !/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(email)) {
+        return next(new AppError("Please provide a valid email", 400));
+    }
+    if (!password || password.length < 6) {
+        return next(new AppError("Password must be at least 6 characters", 400));
+    }
+
+    const validRoles = ["farmer", "editor", "admin", "superadmin"];
+    if (!validRoles.includes(role)) {
+        return next(new AppError("Invalid role specified", 400));
+    }
+
+    // Role-based creation restrictions:
+    // Admin can ONLY create farmer or editor
+    // Superadmin can create any role (farmer, editor, admin, superadmin)
+    if (req.user.role === "admin" && (role === "admin" || role === "superadmin")) {
+        return next(new AppError("Admins can only create farmer or editor accounts", 403));
+    }
+
+    const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
+    if (existingUser) {
+        return next(new AppError("A user with this email already exists", 400));
+    }
+
+    const user = await User.create({
+        name: name.trim(),
+        email: email.toLowerCase().trim(),
+        password,
+        role,
+        phone: phone ? phone.trim() : "",
+        isActive: true,
+    });
+
+    sendSuccess(res, 201, "User created successfully", {
+        user: {
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            phone: user.phone,
+            isActive: user.isActive,
+            createdAt: user.createdAt,
+        },
+    });
+});
+
 const updateUser = asyncHandler(async (req, res, next) => {
     const user = await User.findById(req.params.id);
     if (!user) return next(new AppError("User not found", 404));
 
-    if (req.body.role && ["farmer", "admin"].includes(req.body.role)) {
+    const isSelf = user._id.toString() === req.user._id.toString();
+
+    // Hierarchy protections:
+    // 1. Admin cannot modify Superadmin or other Admin accounts
+    if (req.user.role === "admin") {
+        if (user.role === "superadmin" || user.role === "admin") {
+            return next(new AppError("Admins cannot modify Admin or Superadmin accounts", 403));
+        }
+        if (req.body.role && !["farmer", "editor"].includes(req.body.role)) {
+            return next(new AppError("Admins can only promote or demote users between farmer and editor", 403));
+        }
+    }
+
+    // 2. Superadmin modifying self safeguards
+    if (req.user.role === "superadmin" && isSelf) {
+        if (req.body.role && req.body.role !== "superadmin") {
+            const superadminCount = await User.countDocuments({ role: "superadmin" });
+            if (superadminCount <= 1) {
+                return next(new AppError("Cannot demote the only Superadmin in the system", 400));
+            }
+        }
+        if (req.body.isActive === false) {
+            return next(new AppError("You cannot deactivate your own account", 400));
+        }
+    }
+
+    if (req.body.role) {
+        if (!["farmer", "editor", "admin", "superadmin"].includes(req.body.role)) {
+            return next(new AppError("Invalid role specified", 400));
+        }
         user.role = req.body.role;
     }
+
     if (req.body.isActive !== undefined) {
         user.isActive = req.body.isActive === true;
     }
 
+    if (req.body.name) {
+        user.name = req.body.name.trim();
+    }
+
+    if (req.body.phone !== undefined) {
+        user.phone = req.body.phone.trim();
+    }
+
     await user.save({ validateBeforeSave: false });
     sendSuccess(res, 200, "User updated", { user });
+});
+
+const deleteUser = asyncHandler(async (req, res, next) => {
+    const user = await User.findById(req.params.id);
+    if (!user) return next(new AppError("User not found", 404));
+
+    // Nobody can delete self
+    if (user._id.toString() === req.user._id.toString()) {
+        return next(new AppError("You cannot delete your own account", 400));
+    }
+
+    // Hierarchy protections:
+    if (user.role === "superadmin") {
+        if (req.user.role !== "superadmin") {
+            return next(new AppError("Only Superadmin can delete other accounts", 403));
+        }
+        const superadminCount = await User.countDocuments({ role: "superadmin" });
+        if (superadminCount <= 1) {
+            return next(new AppError("Cannot delete the only Superadmin account", 400));
+        }
+    }
+
+    if (user.role === "admin" && req.user.role !== "superadmin") {
+        return next(new AppError("Only Superadmin can delete Admin accounts", 403));
+    }
+
+    await user.deleteOne();
+    sendSuccess(res, 200, "User deleted successfully");
 });
 
 const listDiseaseReports = asyncHandler(async (req, res) => {
@@ -109,23 +227,70 @@ const listQueries = asyncHandler(async (req, res) => {
     sendSuccess(res, 200, "Queries retrieved", { queries });
 });
 
+const createQuery = asyncHandler(async (req, res, next) => {
+    const { type = "question", title, body, category = "general" } = req.body;
+
+    if (!title || title.trim().length < 3) {
+        return next(new AppError("Title must be at least 3 characters", 400));
+    }
+
+    if (type === "advisory") {
+        const advisory = await Advisory.create({
+            user: req.user._id,
+            query: title.trim(),
+            response: body ? body.trim() : "Advisory created by moderator.",
+            category: category.toLowerCase(),
+            kept: true,
+        });
+        return sendSuccess(res, 201, "Advisory created successfully", { query: advisory });
+    }
+
+    const validCategories = ["disease", "crop-planning", "soil", "irrigation", "market", "equipment", "livestock", "other"];
+    const matchedCategory = validCategories.includes(category.toLowerCase()) ? category.toLowerCase() : "other";
+
+    const question = await Question.create({
+        user: req.user._id,
+        title: title.trim(),
+        body: body ? body.trim() : title.trim(),
+        category: matchedCategory,
+        status: "open",
+    });
+
+    sendSuccess(res, 201, "Question created successfully", { query: question });
+});
+
 const updateQueryStatus = asyncHandler(async (req, res, next) => {
     const { id } = req.params;
-    const { type, kept, status } = req.body;
+    const { type, kept, status, title, body, category } = req.body;
 
-    if (type === "question" || (!type && await Question.findById(id))) {
+    if (type === "question" || (!type && (await Question.findById(id)))) {
         const q = await Question.findById(id);
         if (q) {
-            q.status = kept ? "kept" : (status || "open");
+            if (kept !== undefined) q.status = kept ? "resolved" : "open";
+            if (status !== undefined) {
+                const validStatuses = ["open", "answered", "resolved", "closed"];
+                if (validStatuses.includes(status)) q.status = status;
+            }
+            if (title) q.title = title.trim();
+            if (body) q.body = body.trim();
+            if (category) {
+                const validCategories = ["disease", "crop-planning", "soil", "irrigation", "market", "equipment", "livestock", "other"];
+                if (validCategories.includes(category.toLowerCase())) {
+                    q.category = category.toLowerCase();
+                }
+            }
             await q.save();
             return sendSuccess(res, 200, "Query updated", { query: q });
         }
     }
 
-    if (type === "advisory" || (!type && await Advisory.findById(id))) {
+    if (type === "advisory" || (!type && (await Advisory.findById(id)))) {
         const a = await Advisory.findById(id);
         if (a) {
-            a.kept = kept === true;
+            if (kept !== undefined) a.kept = kept === true;
+            if (title) a.query = title.trim();
+            if (body) a.response = body.trim();
+            if (category) a.category = category.trim();
             await a.save();
             return sendSuccess(res, 200, "Advisory updated", { advisory: a });
         }
@@ -156,10 +321,13 @@ const deleteQuery = asyncHandler(async (req, res, next) => {
 
 module.exports = {
     listUsers,
+    createUser,
     updateUser,
+    deleteUser,
     listDiseaseReports,
     updateDiseaseReport,
     listQueries,
+    createQuery,
     updateQueryStatus,
     deleteQuery,
 };

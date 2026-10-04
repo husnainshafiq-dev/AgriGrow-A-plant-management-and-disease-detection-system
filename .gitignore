@@ -29,6 +29,7 @@ ml-service/venv/
 ml-service/models/*.h5
 ml-service/models/*.pkl
 *.h5
+!plant_disease_model.h5
 
 # Dataset (too large for git)
 dataset/
@@ -38,6 +39,7 @@ archive/
 # Logs
 *.log
 logs/
+test-logs/
 
 # OS files
 .DS_Store
@@ -64,8 +66,4 @@ downloads/latest-model/*
 tmp/
 .node_repl_history
 
-# Documentation & internal files to exclude
-docs/review.md
-*Defense*
-*defense*
 

@@ -408,8 +408,8 @@ const checkHealth = async () => {
         });
 
         return {
-            status: "available",
             ...response.data,
+            status: "available",
             circuitBreaker: circuitState.isOpen ? "open" : "closed",
         };
     } catch (error) {

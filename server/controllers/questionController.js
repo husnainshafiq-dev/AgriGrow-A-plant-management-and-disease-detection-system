@@ -154,7 +154,7 @@ const postAnswer = asyncHandler(async (req, res) => {
         return sendError(res, 404, "Question not found");
     }
 
-    const isExpert = req.user.role === "admin" || (req.user.experience && req.user.experience > 5);
+    const isExpert = ["superadmin", "admin", "editor"].includes(req.user.role) || (req.user.experience && req.user.experience > 5);
 
     question.answers.push({
         user: req.user._id,

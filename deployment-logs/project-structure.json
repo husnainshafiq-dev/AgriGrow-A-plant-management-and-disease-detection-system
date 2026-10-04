@@ -1,0 +1,355 @@
+{
+  "backend": {
+    "directory": "server",
+    "port": 5000,
+    "start_command": "node server.js",
+    "framework": "Express.js",
+    "runtime": "Node.js >=18.0.0",
+    "entry_point": "server/server.js",
+    "package_manager": "npm",
+    "environment_file": "server/.env",
+    "models": [
+      "User.js",
+      "Farm.js",
+      "Crop.js",
+      "Disease.js",
+      "CostEstimation.js",
+      "Advisory.js",
+      "MarketPrice.js",
+      "Forum.js",
+      "BlogPost.js",
+      "CropCalendar.js",
+      "Question.js",
+      "WeatherAlert.js",
+      "Notification.js",
+      "GeoField.js"
+    ],
+    "controllers": [
+      "authController.js",
+      "diseaseController.js",
+      "farmController.js",
+      "costController.js",
+      "advisoryController.js",
+      "dashboardController.js",
+      "marketPriceController.js",
+      "forumController.js",
+      "blogController.js",
+      "calendarController.js",
+      "questionController.js",
+      "weatherAlertController.js",
+      "bookmarkController.js",
+      "suitabilityController.js",
+      "adminController.js"
+    ],
+    "routes": [
+      "authRoutes.js",
+      "diseaseRoutes.js",
+      "farmRoutes.js",
+      "costRoutes.js",
+      "advisoryRoutes.js",
+      "dashboardRoutes.js",
+      "marketPriceRoutes.js",
+      "forumRoutes.js",
+      "blogRoutes.js",
+      "calendarRoutes.js",
+      "questionRoutes.js",
+      "weatherAlertRoutes.js",
+      "bookmarkRoutes.js",
+      "suitabilityRoutes.js",
+      "adminRoutes.js"
+    ],
+    "api_endpoints": [
+      { "method": "POST", "path": "/api/auth/register" },
+      { "method": "POST", "path": "/api/auth/login" },
+      { "method": "POST", "path": "/api/auth/logout" },
+      { "method": "GET", "path": "/api/auth/me" },
+      { "method": "PUT", "path": "/api/auth/update" },
+      { "method": "PUT", "path": "/api/auth/password" },
+      { "method": "GET", "path": "/api/auth/profile/:id" },
+      { "method": "POST", "path": "/api/disease/detect" },
+      { "method": "POST", "path": "/api/disease/sync" },
+      { "method": "GET", "path": "/api/disease/history" },
+      { "method": "GET", "path": "/api/disease/stats" },
+      { "method": "GET", "path": "/api/disease/ml-health" },
+      { "method": "GET", "path": "/api/farms" },
+      { "method": "POST", "path": "/api/farms" },
+      { "method": "GET", "path": "/api/farms/:id" },
+      { "method": "PUT", "path": "/api/farms/:id" },
+      { "method": "DELETE", "path": "/api/farms/:id" },
+      { "method": "GET", "path": "/api/farms/nearby" },
+      { "method": "GET", "path": "/api/cost/crops" },
+      { "method": "POST", "path": "/api/cost/estimate" },
+      { "method": "POST", "path": "/api/cost/estimate/detailed" },
+      { "method": "POST", "path": "/api/cost/estimate/farm/:id" },
+      { "method": "POST", "path": "/api/cost/estimate/ai" },
+      { "method": "POST", "path": "/api/cost/compare" },
+      { "method": "GET", "path": "/api/cost/history" },
+      { "method": "PUT", "path": "/api/cost/crop/:id" },
+      { "method": "POST", "path": "/api/advisory/ask" },
+      { "method": "POST", "path": "/api/advisory/disease" },
+      { "method": "POST", "path": "/api/advisory/weather" },
+      { "method": "POST", "path": "/api/advisory/crop" },
+      { "method": "POST", "path": "/api/advisory/soil" },
+      { "method": "GET", "path": "/api/advisory/history" },
+      { "method": "POST", "path": "/api/dashboard/fields" },
+      { "method": "GET", "path": "/api/dashboard/fields" },
+      { "method": "GET", "path": "/api/dashboard/weather" },
+      { "method": "POST", "path": "/api/dashboard/analyze/crops" },
+      { "method": "GET", "path": "/api/market/prices" },
+      { "method": "GET", "path": "/api/market/prices/latest" },
+      { "method": "POST", "path": "/api/market/prices" },
+      { "method": "GET", "path": "/api/forum/threads" },
+      { "method": "POST", "path": "/api/forum/threads" },
+      { "method": "POST", "path": "/api/forum/threads/:slug/replies" },
+      { "method": "GET", "path": "/api/blog/posts" },
+      { "method": "POST", "path": "/api/blog/posts" },
+      { "method": "GET", "path": "/api/calendar/events" },
+      { "method": "POST", "path": "/api/calendar/events" },
+      { "method": "GET", "path": "/api/questions" },
+      { "method": "POST", "path": "/api/questions" },
+      { "method": "GET", "path": "/api/weather/alerts" },
+      { "method": "POST", "path": "/api/bookmarks/toggle" },
+      { "method": "POST", "path": "/api/suitability/check" },
+      { "method": "POST", "path": "/api/suitability/rank" },
+      { "method": "GET", "path": "/api/admin/users" },
+      { "method": "PATCH", "path": "/api/admin/users/:id" },
+      { "method": "GET", "path": "/api/health" }
+    ]
+  },
+  "frontend": {
+    "directory": "client",
+    "port": 5173,
+    "start_command": "npm run dev",
+    "build_command": "npm run build",
+    "framework": "React 19.0.0",
+    "build_tool": "Vite 6.1.0",
+    "entry_point": "client/src/main.jsx",
+    "package_manager": "npm",
+    "environment_file": "client/.env",
+    "pages": [
+      { "name": "Home", "path": "/", "file": "pages/Home.jsx", "auth_required": false },
+      { "name": "Disease Detection", "path": "/detect", "file": "pages/Home.jsx", "auth_required": false },
+      { "name": "Login", "path": "/login", "file": "pages/Login.jsx", "auth_required": false },
+      { "name": "Register", "path": "/register", "file": "pages/Register.jsx", "auth_required": false },
+      { "name": "Dashboard", "path": "/dashboard", "file": "Dashboard.jsx", "auth_required": true },
+      { "name": "Calendar", "path": "/calendar", "file": "pages/CropCalendar.jsx", "auth_required": true },
+      { "name": "Profile", "path": "/profile", "file": "pages/Profile.jsx", "auth_required": true },
+      { "name": "Bookmarks", "path": "/bookmarks", "file": "pages/Bookmarks.jsx", "auth_required": true },
+      { "name": "Weather Alerts", "path": "/alerts", "file": "pages/WeatherAlerts.jsx", "auth_required": true },
+      { "name": "Admin Dashboard", "path": "/admin", "file": "pages/AdminDashboard.jsx", "auth_required": true },
+      { "name": "Market Prices", "path": "/market", "file": "pages/MarketPrices.jsx", "auth_required": false },
+      { "name": "Expert Q&A", "path": "/qa", "file": "pages/ExpertQA.jsx", "auth_required": false },
+      { "name": "Community Forum", "path": "/community", "file": "Community.jsx", "auth_required": false }
+    ],
+    "components": [
+      "components/Navbar.jsx",
+      "components/Footer.jsx",
+      "components/ProtectedRoute.jsx",
+      "components/BookmarkButton.jsx",
+      "components/EventModal.jsx",
+      "components/PriceChart.jsx",
+      "components/WeatherAlertBadge.jsx",
+      "components/LanguageSwitcher.jsx"
+    ],
+    "state_management": {
+      "type": "React Context API",
+      "contexts": [
+        "context/AuthContext.jsx"
+      ]
+    },
+    "routing": {
+      "library": "react-router-dom 7.18.1",
+      "config_file": "App.jsx"
+    }
+  },
+  "database": {
+    "type": "MongoDB",
+    "host": "localhost",
+    "port": 27017,
+    "database_name": "agrigrow",
+    "orm": "Mongoose 8.6.0",
+    "connection_file": "server/config/db.js",
+    "collections": [
+      "users",
+      "farms",
+      "crops",
+      "diseases",
+      "costestimations",
+      "advisories",
+      "marketprices",
+      "forums",
+      "blogposts",
+      "cropcalendars",
+      "questions",
+      "weatheralerts",
+      "notifications",
+      "geofields"
+    ],
+    "indexes": {
+      "geospatial": [
+        "users.location (2dsphere)",
+        "farms.location (2dsphere)",
+        "farms.center (2dsphere)"
+      ],
+      "unique": [
+        "users.email"
+      ],
+      "standard": [
+        "users.role",
+        "farms.user",
+        "crops.farm",
+        "crops.user",
+        "diseases.user",
+        "costestimations.user"
+      ]
+    }
+  },
+  "ml_service": {
+    "directory": "ml-service",
+    "port": 8000,
+    "start_command": "uvicorn app:app --host 0.0.0.0 --port 8000",
+    "framework": "FastAPI",
+    "runtime": "Python 3.x",
+    "entry_point": "ml-service/app.py",
+    "model_type": "ONNX (MobileNetV2)",
+    "model_path": "downloads/latest-model/mobilenet_v2_47_classes.onnx",
+    "model_classes": 47,
+    "input_size": "224x224",
+    "endpoints": [
+      { "method": "POST", "path": "/predict" },
+      { "method": "GET", "path": "/health" },
+      { "method": "GET", "path": "/classes" },
+      { "method": "GET", "path": "/docs" }
+    ],
+    "dependencies": [
+      "fastapi",
+      "uvicorn",
+      "onnxruntime",
+      "numpy",
+      "pillow",
+      "pydantic"
+    ]
+  },
+  "external_services": {
+    "gemini_ai": {
+      "purpose": "AI advisory and agricultural recommendations",
+      "provider": "Google",
+      "api_key_env": "GEMINI_API_KEY",
+      "rate_limit": "10 requests/minute per user"
+    },
+    "openweather": {
+      "purpose": "Weather data for dashboard",
+      "provider": "OpenWeather",
+      "api_key_env": "OPENWEATHER_API_KEY"
+    },
+    "amis": {
+      "purpose": "Market price scraping",
+      "provider": "Agricultural Marketing Information System",
+      "schedule": "Daily cron job",
+      "scraper": "server/jobs/marketPriceCron.js"
+    }
+  },
+  "testing": {
+    "backend": {
+      "framework": "Jest 30.4.2",
+      "http_testing": "supertest 7.2.2",
+      "mock_db": "mongodb-memory-server 11.2.0",
+      "test_directory": "server/tests",
+      "run_command": "npm test"
+    },
+    "frontend": {
+      "framework": "Vitest 4.1.10",
+      "react_testing": "@testing-library/react 16.3.2",
+      "dom": "jsdom 29.1.1",
+      "test_directory": "client/src/pages/__tests__",
+      "run_command": "npm test"
+    }
+  },
+  "security": {
+    "authentication": "JWT (jsonwebtoken 9.0.2)",
+    "password_hashing": "bcryptjs (12 salt rounds)",
+    "password_min_length": 6,
+    "jwt_expiry": "7d",
+    "security_middleware": [
+      "helmet 7.1.0 - HTTP security headers",
+      "cors 2.8.5 - Cross-origin resource sharing",
+      "express-rate-limit 7.4.0 - Rate limiting (1000 req/15min)",
+      "express-mongo-sanitize 2.2.0 - NoSQL injection prevention",
+      "hpp 0.2.3 - HTTP parameter pollution prevention"
+    ],
+    "roles": ["farmer", "admin"],
+    "login_attempts_lockout": 5,
+    "lockout_duration_minutes": 30
+  },
+  "deployment": {
+    "environment_variables": {
+      "backend": [
+        "NODE_ENV",
+        "PORT",
+        "MONGO_URI",
+        "JWT_SECRET",
+        "JWT_EXPIRE",
+        "GEMINI_API_KEY",
+        "OPENWEATHER_API_KEY",
+        "ML_SERVICE_URL"
+      ],
+      "frontend": [
+        "VITE_API_BASE_URL"
+      ]
+    },
+    "production_build": {
+      "backend": "node server.js",
+      "frontend": "npm run build (outputs to client/dist)",
+      "ml_service": "uvicorn app:app --host 0.0.0.0 --port 8000 --workers 4"
+    },
+    "static_files": {
+      "uploads": "server/uploads",
+      "client_build": "client/dist",
+      "spa_fallback": "client/dist/index.html"
+    }
+  },
+  "features": {
+    "core": [
+      "Plant disease detection (47 classes)",
+      "Farm mapping with GeoJSON polygons",
+      "Crop management and tracking",
+      "Cost estimation and profitability analysis",
+      "AI-powered agricultural advisory",
+      "Market price tracking and trends",
+      "Community forum",
+      "Blog system",
+      "Q&A platform",
+      "Crop calendar and reminders",
+      "Weather alerts",
+      "User bookmarks",
+      "Admin dashboard"
+    ],
+    "advanced": [
+      "Offline disease detection (TensorFlow.js)",
+      "Progressive Web App (PWA)",
+      "Geospatial queries (nearby farms)",
+      "Background sync for offline detections",
+      "Web scraping for market prices",
+      "Multi-language support (en, ur, pa)",
+      "Role-based access control",
+      "Content moderation system"
+    ]
+  },
+  "analysis_metadata": {
+    "analysis_date": "2026-10-02",
+    "total_backend_files": 60,
+    "total_frontend_files": 40,
+    "total_models": 14,
+    "total_controllers": 15,
+    "total_routes": 15,
+    "total_api_endpoints": 90,
+    "total_frontend_pages": 13,
+    "languages": {
+      "JavaScript": "80%",
+      "Python": "10%",
+      "CSS": "8%",
+      "HTML": "2%"
+    },
+    "estimated_lines_of_code": 50000
+  }
+}

@@ -15,15 +15,15 @@ const {
 const { protect, authorize, optionalAuth } = require("../middleware/auth");
 
 router.get("/posts", listPublishedPosts);
-router.post("/posts", optionalAuth, submitPost);
+router.post("/posts", protect, submitPost);
 router.get("/posts/:slug", getPublishedPost);
-router.post("/posts/:slug/comments", optionalAuth, addComment);
+router.post("/posts/:slug/comments", protect, addComment);
 
 router.get("/notifications", optionalAuth, getNotifications);
 router.patch("/notifications/:id/read", optionalAuth, markNotificationRead);
 
-router.get("/admin/posts", protect, authorize("admin"), listAdminPosts);
-router.patch("/admin/posts/:id", protect, authorize("admin"), updateAdminPost);
-router.delete("/admin/posts/:id", protect, authorize("admin"), deleteAdminPost);
+router.get("/admin/posts", protect, authorize("admin", "editor", "superadmin"), listAdminPosts);
+router.patch("/admin/posts/:id", protect, authorize("admin", "editor", "superadmin"), updateAdminPost);
+router.delete("/admin/posts/:id", protect, authorize("admin", "editor", "superadmin"), deleteAdminPost);
 
 module.exports = router;

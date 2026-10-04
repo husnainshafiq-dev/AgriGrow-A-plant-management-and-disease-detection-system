@@ -1,0 +1,11 @@
+﻿{
+    "mode":  "B",
+    "workspace":  "D:\\model",
+    "backend_url":  "http://localhost:5000",
+    "skill_dir":  "C:\\Users\\hch21\\AppData\\Roaming\\npm\\node_modules\\winclaw\\skills\\ai-dev-system-testing",
+    "timestamp":  "2026-10-02T11:40:13.6695651+05:00",
+    "design_docs_dir":  "D:\\model\\docs",
+    "chrome_mcp_verified":  true,
+    "database_url":  "",
+    "frontend_url":  "http://localhost:3000"
+}

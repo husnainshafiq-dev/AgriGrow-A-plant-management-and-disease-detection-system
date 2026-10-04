@@ -159,13 +159,29 @@ const getLatestPrices = asyncHandler(async (req, res) => {
                 currency: { $first: "$currency" },
                 date: { $first: "$date" },
                 source: { $first: "$source" },
+                submittedBy: { $first: "$submittedBy" },
+                isVerified: { $first: "$isVerified" },
             },
         },
         { $sort: { date: -1 } },
     ];
 
     const latest = await MarketPrice.aggregate(pipeline);
-    sendSuccess(res, 200, "Latest market prices retrieved", latest);
+    const sanitized = latest.map((item) => {
+        const avg = item.price?.average || 0;
+        const min = item.price?.min && item.price.min > 0 ? item.price.min : Math.round(avg * 0.95);
+        const max = item.price?.max && item.price.max > 0 ? item.price.max : Math.round(avg * 1.05);
+        return {
+            ...item,
+            price: {
+                ...item.price,
+                min,
+                max,
+                average: avg,
+            },
+        };
+    });
+    sendSuccess(res, 200, "Latest market prices retrieved", sanitized);
 });
 
 // @desc    Get price history for a crop (for line charts)
@@ -277,6 +293,7 @@ const submitPrice = asyncHandler(async (req, res) => {
         return sendError(res, 400, "Please provide cropName, market, province, and price average");
     }
 
+    const isAdmin = ["superadmin", "admin", "editor"].includes(req.user.role);
     const priceEntry = await MarketPrice.create({
         cropName: cropName.toLowerCase(),
         market,
@@ -289,17 +306,19 @@ const submitPrice = asyncHandler(async (req, res) => {
         },
         currency: "PKR",
         date: date || new Date(),
-        source: req.user.role === "admin" ? "admin" : "user-contributed",
+        source: isAdmin ? "admin" : "user-contributed",
         submittedBy: req.user._id,
-        isVerified: req.user.role === "admin",
+        isVerified: isAdmin,
+        moderationStatus: isAdmin ? "approved" : "pending",
+        verifiedBy: isAdmin ? req.user._id : undefined,
     });
 
     sendSuccess(
         res,
         201,
-        req.user.role === "admin"
+        isAdmin
             ? "Market price recorded successfully"
-            : "Price report submitted. It will be visible once verified.",
+            : "Price report submitted. An admin will review it to approve or reject before it appears on the app.",
         priceEntry
     );
 });
@@ -341,6 +360,7 @@ const manualPriceEntry = asyncHandler(async (req, res) => {
         submittedBy: req.user._id,
         isVerified: true,
         verifiedBy: req.user._id,
+        moderationStatus: "approved",
     };
 
     // Upsert: replace any existing record for this (crop, market, date)
@@ -377,21 +397,99 @@ const getCronStatus = asyncHandler(async (_req, res) => {
     sendSuccess(res, 200, "Cron status retrieved", getCronStatus());
 });
 
-// @desc    Verify a user-submitted price
-// @route   PATCH /api/market/prices/:id/verify
+// @desc    Admin: approve user-submitted price to show on app
+// @route   PATCH /api/market/prices/:id/approve
 // @access  Private (Admin only)
-const verifyPrice = asyncHandler(async (req, res) => {
-    const price = await MarketPrice.findByIdAndUpdate(
-        req.params.id,
-        { isVerified: true, verifiedBy: req.user._id },
-        { new: true }
-    );
+const approvePrice = asyncHandler(async (req, res) => {
+    const price = await MarketPrice.findById(req.params.id);
 
     if (!price) {
         return sendError(res, 404, "Market price record not found");
     }
 
-    sendSuccess(res, 200, "Market price verified successfully", price);
+    price.isVerified = true;
+    price.moderationStatus = "approved";
+    price.verifiedBy = req.user._id;
+    price.rejectedBy = undefined;
+    price.rejectionReason = "";
+    await price.save();
+
+    logger.info(`✅ [market] Price approved by admin ${req.user.email}: ${price.cropName} @ ${price.market}`);
+
+    sendSuccess(res, 200, "Market price approved and published to the app", price);
+});
+
+// @desc    Admin: reject user-submitted price from showing on app
+// @route   PATCH /api/market/prices/:id/reject
+// @access  Private (Admin only)
+const rejectPrice = asyncHandler(async (req, res) => {
+    const { reason } = req.body || {};
+    const price = await MarketPrice.findById(req.params.id);
+
+    if (!price) {
+        return sendError(res, 404, "Market price record not found");
+    }
+
+    price.isVerified = false;
+    price.moderationStatus = "rejected";
+    price.rejectedBy = req.user._id;
+    if (reason) price.rejectionReason = reason;
+    await price.save();
+
+    logger.info(`❌ [market] Price rejected by admin ${req.user.email}: ${price.cropName} @ ${price.market}`);
+
+    sendSuccess(res, 200, "Market price submission has been rejected", price);
+});
+
+// Legacy alias for approvePrice
+const verifyPrice = approvePrice;
+
+// @desc    Admin: get moderation queue of user-contributed prices
+// @route   GET /api/market/moderation-queue
+// @access  Private (Admin only)
+const getModerationQueue = asyncHandler(async (req, res) => {
+    const { status } = req.query;
+    const filter = { source: "user-contributed" };
+    if (status && ["pending", "approved", "rejected"].includes(status)) {
+        filter.moderationStatus = status;
+    }
+
+    const prices = await MarketPrice.find(filter)
+        .populate("submittedBy", "name email role")
+        .populate("verifiedBy", "name email")
+        .populate("rejectedBy", "name email")
+        .sort({ createdAt: -1 });
+
+    sendSuccess(res, 200, "Moderation queue retrieved", prices);
+});
+
+// @desc    Delete a market price record (Admin only)
+// @route   DELETE /api/market/prices/:id
+// @access  Private (Admin only)
+const deletePrice = asyncHandler(async (req, res) => {
+    if (!["superadmin", "admin"].includes(req.user.role)) {
+        return sendError(res, 403, "Only administrators are authorized to delete market price records");
+    }
+
+    const price = await MarketPrice.findById(req.params.id);
+
+    if (!price) {
+        return sendError(res, 404, "Market price record not found");
+    }
+
+    await MarketPrice.findByIdAndDelete(req.params.id);
+
+    logger.info(`🗑️ [market] Price record deleted: ${price.cropName} @ ${price.market} by admin ${req.user.email}`);
+
+    sendSuccess(res, 200, "Market price record deleted successfully");
+});
+
+// @desc    Get all prices submitted by the logged-in user
+// @route   GET /api/market/my-prices
+// @access  Private
+const getMyReportedPrices = asyncHandler(async (req, res) => {
+    const prices = await MarketPrice.find({ submittedBy: req.user._id }).sort({ date: -1 });
+    sendSuccess(res, 200, "User reported prices retrieved", prices);
 });
 
 module.exports = {
@@ -406,4 +504,9 @@ module.exports = {
     triggerScrape,
     getCronStatus,
     verifyPrice,
+    approvePrice,
+    rejectPrice,
+    getModerationQueue,
+    deletePrice,
+    getMyReportedPrices,
 };

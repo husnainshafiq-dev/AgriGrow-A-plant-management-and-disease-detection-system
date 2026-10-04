@@ -143,7 +143,7 @@ const register = asyncHandler(async (req, res, next) => {
         email,
         password,
         phone,
-        role: role || "farmer", // Default role
+        role: "farmer", // Public registration is strictly restricted to 'farmer' role
     });
 
     logger.info(`New user registered: ${email} (role: ${user.role})`);

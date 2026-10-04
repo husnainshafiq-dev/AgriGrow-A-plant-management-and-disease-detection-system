@@ -4,7 +4,7 @@ import { useLanguage } from "../context/LanguageContext";
 import "./Profile.css";
 
 export default function Profile() {
-    const { user, authHeaders, updateProfile } = useAuth();
+    const { user, authHeaders, updateProfile, updateUser } = useAuth();
     const { t } = useLanguage();
 
     const [isEditing, setIsEditing] = useState(false);
@@ -55,23 +55,35 @@ export default function Profile() {
         fetchFarms();
     }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const handleAvatarChange = (e) => {
+    const handleAvatarChange = async (e) => {
         const file = e.target.files[0];
-        if (file) {
-            setAvatarFile(file);
-            const reader = new FileReader();
-            reader.onload = (ev) => setAvatarPreview(ev.target.result);
-            reader.readAsDataURL(file);
-        }
-    };
+        if (!file) return;
 
-    const handleUploadAvatar = async () => {
-        if (!avatarFile) return;
+        // Check file type
+        if (!file.type.startsWith("image/")) {
+            setStatusMsg("Please select an image file (JPEG, PNG, or WebP).");
+            setTimeout(() => setStatusMsg(""), 3000);
+            return;
+        }
+
+        // Check file size (max 5 MB)
+        if (file.size > 5 * 1024 * 1024) {
+            setStatusMsg("Image exceeds 5 MB. Please select a smaller photo.");
+            setTimeout(() => setStatusMsg(""), 3000);
+            return;
+        }
+
+        // Show immediate local preview
+        const reader = new FileReader();
+        reader.onload = (ev) => setAvatarPreview(ev.target.result);
+        reader.readAsDataURL(file);
+
+        // Upload immediately to server
         setUploadingAvatar(true);
-        setStatusMsg("");
-        
+        setStatusMsg("Uploading photo...");
+
         const fd = new FormData();
-        fd.append("avatar", avatarFile);
+        fd.append("avatar", file);
 
         try {
             const res = await fetch("/api/auth/profile/avatar", {
@@ -82,14 +94,40 @@ export default function Profile() {
             });
             const data = await res.json();
             if (res.ok) {
-                setStatusMsg("Avatar updated successfully!");
+                const newAvatarUrl = data.data?.avatar || data.avatar;
+                setStatusMsg("Profile photo updated successfully!");
+                setAvatarPreview(newAvatarUrl);
+                if (data.data?.user) {
+                    updateUser(data.data.user);
+                } else if (newAvatarUrl) {
+                    updateUser((prev) => ({ ...prev, avatar: newAvatarUrl }));
+                }
                 setAvatarFile(null);
             } else {
                 setStatusMsg(data.error || "Failed to upload image");
+                setAvatarPreview(user?.avatar || "");
             }
         } catch (err) {
             console.error("Avatar upload failed:", err);
             setStatusMsg("Upload failed due to connection error.");
+            setAvatarPreview(user?.avatar || "");
+        } finally {
+            setUploadingAvatar(false);
+            setTimeout(() => setStatusMsg(""), 4000);
+        }
+    };
+
+    const handleRemoveAvatar = async () => {
+        if (!user?.avatar) return;
+        setUploadingAvatar(true);
+        setStatusMsg("Removing photo...");
+        try {
+            await updateProfile({ avatar: "" });
+            setAvatarPreview("");
+            updateUser((prev) => ({ ...prev, avatar: "" }));
+            setStatusMsg("Profile photo removed.");
+        } catch (err) {
+            setStatusMsg(err.message || "Failed to remove photo.");
         } finally {
             setUploadingAvatar(false);
             setTimeout(() => setStatusMsg(""), 3000);
@@ -141,27 +179,54 @@ export default function Profile() {
                                 <img
                                     src={avatarPreview || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face"}
                                     alt="Farmer Avatar"
-                                    className="profile-avatar-img"
+                                    className={`profile-avatar-img ${uploadingAvatar ? "uploading" : ""}`}
+                                    onError={(e) => {
+                                        e.target.onerror = null;
+                                        e.target.src = "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face";
+                                    }}
                                 />
                                 <label className="avatar-upload-btn" title="Choose new picture">
-                                    📷
-                                    <input type="file" accept="image/*" hidden onChange={handleAvatarChange} />
+                                    {uploadingAvatar ? "⏳" : "📷"}
+                                    <input type="file" accept="image/*" hidden onChange={handleAvatarChange} disabled={uploadingAvatar} />
                                 </label>
                             </div>
                             
-                            {avatarFile && (
+                            {uploadingAvatar && (
+                                <p style={{ fontSize: "12px", color: "#10b981", margin: "-10px 0 14px 0", fontWeight: "600" }}>
+                                    Uploading photo...
+                                </p>
+                            )}
+
+                            {user?.avatar && !uploadingAvatar && (
                                 <button
-                                    onClick={handleUploadAvatar}
-                                    disabled={uploadingAvatar}
-                                    className="btn-primary upload-submit-btn"
-                                    style={{ marginTop: "14px", padding: "6px 12px", fontSize: "12px" }}
+                                    type="button"
+                                    onClick={handleRemoveAvatar}
+                                    className="remove-avatar-btn"
+                                    title="Remove current photo"
+                                    style={{
+                                        background: "none",
+                                        border: "none",
+                                        color: "#ef4444",
+                                        fontSize: "11px",
+                                        cursor: "pointer",
+                                        margin: "-10px 0 14px 0",
+                                        textDecoration: "underline"
+                                    }}
                                 >
-                                    {uploadingAvatar ? "Uploading..." : "Save Image"}
+                                    Remove Photo
                                 </button>
                             )}
 
                             <h3 className="profile-name">{user?.name}</h3>
-                            <p className="profile-role-badge">🌾 {user?.role === "admin" ? "Admin Advisor" : "Verified Farmer"}</p>
+                            <p className="profile-role-badge">
+                                {user?.role === "superadmin"
+                                    ? "👑 Super Admin"
+                                    : user?.role === "admin"
+                                    ? "🛡️ Admin Advisor"
+                                    : user?.role === "editor"
+                                    ? "✏️ Content Editor"
+                                    : "🌾 Verified Farmer"}
+                            </p>
                             
                             <div className="profile-stats-row">
                                 <div className="stat-box">

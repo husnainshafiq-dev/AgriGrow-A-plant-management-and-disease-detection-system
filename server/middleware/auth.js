@@ -172,17 +172,18 @@ const authorize = (...roles) => {
             );
         }
 
-        if (!roles.includes(req.user.role)) {
-            return next(
-                new AppError(
-                    `Role '${req.user.role}' is not authorized to access this route. ` +
-                    `Required roles: ${roles.join(", ")}`,
-                    403
-                )
-            );
+        // Superadmin controls everything and bypasses specific role restrictions
+        if (req.user.role === "superadmin" || roles.includes(req.user.role)) {
+            return next();
         }
 
-        next();
+        return next(
+            new AppError(
+                `Role '${req.user.role}' is not authorized to access this route. ` +
+                `Required roles: ${roles.join(", ")}`,
+                403
+            )
+        );
     };
 };
 

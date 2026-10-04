@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
 import BookmarkButton from "../components/BookmarkButton";
@@ -191,6 +192,34 @@ export default function ExpertQA() {
             console.error("Failed to accept answer:", err);
         }
     };
+
+    if (!isAuthenticated) {
+        return (
+            <div className="qa-page">
+                <div className="bg-blobs">
+                    <div className="blob blob-1"></div>
+                    <div className="blob blob-2"></div>
+                </div>
+                <div className="qa-content container auth-gate-container">
+                    <div className="auth-gate-card glass-panel">
+                        <div className="auth-gate-icon">💬</div>
+                        <h2>{t("nav.qa")} — Expert Consultation</h2>
+                        <p className="auth-gate-desc">
+                            Expert consultation questions, agronomist diagnosis answers, and community troubleshooting are available to logged-in members. Please log in to view questions and consult with agricultural experts.
+                        </p>
+                        <div className="auth-gate-actions">
+                            <Link to="/login?redirect=/qa" className="btn-primary auth-gate-btn">
+                                🔐 Log In to Access Expert Q&A
+                            </Link>
+                            <Link to="/register?redirect=/qa" className="btn-secondary auth-gate-btn">
+                                🌱 Create Free Account
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="qa-page">

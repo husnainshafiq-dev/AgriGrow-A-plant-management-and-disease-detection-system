@@ -101,8 +101,13 @@ const addComment = asyncHandler(async (req, res, next) => {
     });
     await post.save();
 
+    const approvedComments = post.comments.filter((comment) => comment.status === "approved");
+    const addedComment = approvedComments[approvedComments.length - 1];
+
     sendSuccess(res, 201, "Comment added", {
-        comments: post.comments.filter((comment) => comment.status === "approved"),
+        comment: addedComment,
+        comments: approvedComments,
+        commentCount: approvedComments.length,
     });
 });
 

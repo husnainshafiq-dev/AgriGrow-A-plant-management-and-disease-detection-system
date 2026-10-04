@@ -572,10 +572,10 @@ const getStats = asyncHandler(async (req, res) => {
  */
 const mlHealthCheck = asyncHandler(async (_req, res) => {
     const health = await checkHealth();
-    const statusCode = health.status === "available" ? 200 : 503;
+    const statusCode = (health.status === "available" || health.status === "healthy") ? 200 : 503;
 
     res.status(statusCode).json({
-        success: health.status === "available",
+        success: health.status === "available" || health.status === "healthy",
         ...health,
     });
 });

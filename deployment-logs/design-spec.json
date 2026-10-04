@@ -1,0 +1,648 @@
+{
+  "metadata": {
+    "source_dir": "D:\\model\\docs",
+    "files_analyzed": 8,
+    "analysis_date": "2026-10-02T00:00:00.000Z",
+    "categories": {
+      "api_specs": 1,
+      "screen_specs": 1,
+      "db_specs": 1,
+      "business_specs": 2,
+      "architecture_specs": 3,
+      "uncategorized": 1
+    }
+  },
+  "entities": [
+    {
+      "name": "User",
+      "source": "docs/DATABASE_DESIGN.md",
+      "fields": [
+        { "name": "_id", "type": "ObjectId", "primary_key": true, "foreign_key": null, "unique": true, "required": true, "default": null },
+        { "name": "name", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": true, "default": null },
+        { "name": "email", "type": "String", "primary_key": false, "foreign_key": null, "unique": true, "required": true, "default": null },
+        { "name": "password", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": true, "default": null },
+        { "name": "phone", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null },
+        { "name": "role", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": "farmer" },
+        { "name": "avatar", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": "" },
+        { "name": "address", "type": "Object", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": {} },
+        { "name": "location", "type": "GeoJSON Point", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null },
+        { "name": "isActive", "type": "Boolean", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": true },
+        { "name": "lastLogin", "type": "Date", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null },
+        { "name": "loginAttempts", "type": "Number", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": 0 },
+        { "name": "lockUntil", "type": "Date", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null },
+        { "name": "passwordChangedAt", "type": "Date", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null }
+      ],
+      "relationships": [
+        { "type": "has_many", "target": "Farm", "foreign_key": "user" },
+        { "type": "has_many", "target": "Crop", "foreign_key": "user" },
+        { "type": "has_many", "target": "DiseaseReport", "foreign_key": "user" },
+        { "type": "has_many", "target": "CostEstimation", "foreign_key": "user" }
+      ]
+    },
+    {
+      "name": "Farm",
+      "source": "docs/DATABASE_DESIGN.md",
+      "fields": [
+        { "name": "_id", "type": "ObjectId", "primary_key": true, "foreign_key": null, "unique": true, "required": true, "default": null },
+        { "name": "user", "type": "ObjectId", "primary_key": false, "foreign_key": "User._id", "unique": false, "required": true, "default": null },
+        { "name": "name", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": true, "default": null },
+        { "name": "description", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": "" },
+        { "name": "location", "type": "GeoJSON Polygon", "primary_key": false, "foreign_key": null, "unique": false, "required": true, "default": null },
+        { "name": "center", "type": "GeoJSON Point", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null },
+        { "name": "address", "type": "Object", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null },
+        { "name": "area", "type": "Object", "primary_key": false, "foreign_key": null, "unique": false, "required": true, "default": null },
+        { "name": "soilType", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": "other" },
+        { "name": "soilPH", "type": "Number", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null },
+        { "name": "terrain", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": "flat" },
+        { "name": "waterSource", "type": "Object", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null },
+        { "name": "crops", "type": "Array<ObjectId>", "primary_key": false, "foreign_key": "Crop._id", "unique": false, "required": false, "default": [] },
+        { "name": "cropHistory", "type": "Array<Object>", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": [] },
+        { "name": "farmType", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": "crop" },
+        { "name": "ownershipType", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": "owned" },
+        { "name": "isActive", "type": "Boolean", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": true },
+        { "name": "images", "type": "Array<Object>", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": [] }
+      ],
+      "relationships": [
+        { "type": "belongs_to", "target": "User", "foreign_key": "user" },
+        { "type": "has_many", "target": "Crop", "foreign_key": "farm" },
+        { "type": "has_many", "target": "DiseaseReport", "foreign_key": "farm" },
+        { "type": "has_many", "target": "CostEstimation", "foreign_key": "farm" }
+      ]
+    },
+    {
+      "name": "Crop",
+      "source": "docs/DATABASE_DESIGN.md",
+      "fields": [
+        { "name": "_id", "type": "ObjectId", "primary_key": true, "foreign_key": null, "unique": true, "required": true, "default": null },
+        { "name": "farm", "type": "ObjectId", "primary_key": false, "foreign_key": "Farm._id", "unique": false, "required": true, "default": null },
+        { "name": "user", "type": "ObjectId", "primary_key": false, "foreign_key": "User._id", "unique": false, "required": true, "default": null },
+        { "name": "name", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": true, "default": null },
+        { "name": "variety", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": "" },
+        { "name": "category", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": "other" },
+        { "name": "season", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null },
+        { "name": "plantingDate", "type": "Date", "primary_key": false, "foreign_key": null, "unique": false, "required": true, "default": null },
+        { "name": "expectedHarvestDate", "type": "Date", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null },
+        { "name": "actualHarvestDate", "type": "Date", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null },
+        { "name": "area", "type": "Object", "primary_key": false, "foreign_key": null, "unique": false, "required": true, "default": null },
+        { "name": "costs", "type": "Object", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null },
+        { "name": "expectedYield", "type": "Object", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null },
+        { "name": "actualYield", "type": "Object", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null },
+        { "name": "marketPricePerUnit", "type": "Number", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": 0 },
+        { "name": "expectedRevenue", "type": "Number", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": 0 },
+        { "name": "actualRevenue", "type": "Number", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": 0 },
+        { "name": "status", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": "planned" },
+        { "name": "healthStatus", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": "unknown" }
+      ],
+      "relationships": [
+        { "type": "belongs_to", "target": "Farm", "foreign_key": "farm" },
+        { "type": "belongs_to", "target": "User", "foreign_key": "user" },
+        { "type": "has_many", "target": "DiseaseReport", "foreign_key": "crop" },
+        { "type": "has_many", "target": "CostEstimation", "foreign_key": "crop" }
+      ]
+    },
+    {
+      "name": "DiseaseReport",
+      "source": "docs/DATABASE_DESIGN.md",
+      "fields": [
+        { "name": "_id", "type": "ObjectId", "primary_key": true, "foreign_key": null, "unique": true, "required": true, "default": null },
+        { "name": "user", "type": "ObjectId", "primary_key": false, "foreign_key": "User._id", "unique": false, "required": true, "default": null },
+        { "name": "farm", "type": "ObjectId", "primary_key": false, "foreign_key": "Farm._id", "unique": false, "required": false, "default": null },
+        { "name": "crop", "type": "ObjectId", "primary_key": false, "foreign_key": "Crop._id", "unique": false, "required": false, "default": null },
+        { "name": "imageUrl", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": true, "default": null },
+        { "name": "prediction", "type": "Object", "primary_key": false, "foreign_key": null, "unique": false, "required": true, "default": null },
+        { "name": "topPredictions", "type": "Array<Object>", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": [] },
+        { "name": "description", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": "" },
+        { "name": "recommendation", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": "" },
+        { "name": "aiAdvisory", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": "" },
+        { "name": "treatmentApplied", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": "" },
+        { "name": "treatmentDate", "type": "Date", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null },
+        { "name": "resolved", "type": "Boolean", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": false },
+        { "name": "userFeedback", "type": "Object", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null },
+        { "name": "scanLocation", "type": "GeoJSON Point", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null },
+        { "name": "weatherAtScan", "type": "Object", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null }
+      ],
+      "relationships": [
+        { "type": "belongs_to", "target": "User", "foreign_key": "user" },
+        { "type": "belongs_to", "target": "Farm", "foreign_key": "farm" },
+        { "type": "belongs_to", "target": "Crop", "foreign_key": "crop" }
+      ]
+    },
+    {
+      "name": "CostEstimation",
+      "source": "docs/DATABASE_DESIGN.md",
+      "fields": [
+        { "name": "_id", "type": "ObjectId", "primary_key": true, "foreign_key": null, "unique": true, "required": true, "default": null },
+        { "name": "user", "type": "ObjectId", "primary_key": false, "foreign_key": "User._id", "unique": false, "required": true, "default": null },
+        { "name": "farm", "type": "ObjectId", "primary_key": false, "foreign_key": "Farm._id", "unique": false, "required": false, "default": null },
+        { "name": "crop", "type": "ObjectId", "primary_key": false, "foreign_key": "Crop._id", "unique": false, "required": false, "default": null },
+        { "name": "cropName", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": true, "default": null },
+        { "name": "area", "type": "Object", "primary_key": false, "foreign_key": null, "unique": false, "required": true, "default": null },
+        { "name": "costSummary", "type": "Object", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null },
+        { "name": "lineItems", "type": "Array<Object>", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": [] },
+        { "name": "totalCost", "type": "Number", "primary_key": false, "foreign_key": null, "unique": false, "required": true, "default": null },
+        { "name": "expectedYield", "type": "Object", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null },
+        { "name": "expectedRevenue", "type": "Number", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": 0 },
+        { "name": "expectedProfit", "type": "Number", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": 0 },
+        { "name": "roi", "type": "Number", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": 0 },
+        { "name": "breakEvenYield", "type": "Object", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null },
+        { "name": "aiSuggestions", "type": "Object", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null },
+        { "name": "regionAverage", "type": "Object", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": null },
+        { "name": "estimationType", "type": "String", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": "quick" },
+        { "name": "isSaved", "type": "Boolean", "primary_key": false, "foreign_key": null, "unique": false, "required": false, "default": false }
+      ],
+      "relationships": [
+        { "type": "belongs_to", "target": "User", "foreign_key": "user" },
+        { "type": "belongs_to", "target": "Farm", "foreign_key": "farm" },
+        { "type": "belongs_to", "target": "Crop", "foreign_key": "crop" }
+      ]
+    }
+  ],
+  "api_endpoints": [
+    {
+      "method": "POST",
+      "path": "/api/auth/register",
+      "summary": "Register a new user account",
+      "request_body": {
+        "name": "string",
+        "email": "string",
+        "password": "string"
+      },
+      "responses": {
+        "201": "Registration successful with JWT token",
+        "400": "Validation error or email already exists"
+      },
+      "auth_required": false,
+      "required_roles": [],
+      "business_rules": ["BR-001"],
+      "source": "docs/API_REFERENCE.md"
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "summary": "Authenticate user and receive JWT token",
+      "request_body": {
+        "email": "string",
+        "password": "string"
+      },
+      "responses": {
+        "200": "Login successful with JWT token",
+        "401": "Invalid credentials",
+        "403": "Account locked due to failed login attempts"
+      },
+      "auth_required": false,
+      "required_roles": [],
+      "business_rules": ["BR-002", "BR-003"],
+      "source": "docs/API_REFERENCE.md"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "summary": "Get current authenticated user profile",
+      "request_body": {},
+      "responses": {
+        "200": "User profile data",
+        "401": "Unauthorized - invalid or missing token"
+      },
+      "auth_required": true,
+      "required_roles": [],
+      "business_rules": [],
+      "source": "docs/API_REFERENCE.md"
+    },
+    {
+      "method": "POST",
+      "path": "/api/disease/detect",
+      "summary": "Upload plant leaf image for disease detection",
+      "request_body": {
+        "file": "binary (multipart/form-data)",
+        "farmId": "string (optional)",
+        "cropId": "string (optional)"
+      },
+      "responses": {
+        "200": "Disease detection result with prediction, confidence, and AI advisory",
+        "400": "Invalid file type or file too large",
+        "503": "ML service unavailable"
+      },
+      "auth_required": true,
+      "required_roles": [],
+      "business_rules": ["BR-004", "BR-005", "BR-006"],
+      "source": "docs/API_REFERENCE.md"
+    },
+    {
+      "method": "GET",
+      "path": "/api/disease/history",
+      "summary": "Get disease detection history with pagination",
+      "request_body": {},
+      "responses": {
+        "200": "Paginated list of disease reports"
+      },
+      "auth_required": true,
+      "required_roles": [],
+      "business_rules": [],
+      "source": "docs/API_REFERENCE.md"
+    },
+    {
+      "method": "GET",
+      "path": "/api/disease/:id",
+      "summary": "Get single disease detection report by ID",
+      "request_body": {},
+      "responses": {
+        "200": "Disease report details",
+        "404": "Report not found"
+      },
+      "auth_required": true,
+      "required_roles": [],
+      "business_rules": [],
+      "source": "docs/API_REFERENCE.md"
+    },
+    {
+      "method": "POST",
+      "path": "/api/advisory/ask",
+      "summary": "Ask AI advisor a farming question",
+      "request_body": {
+        "query": "string",
+        "context": {
+          "cropType": "string",
+          "soilType": "string",
+          "season": "string",
+          "location": "string",
+          "diseaseDetected": "string (optional)"
+        },
+        "category": "string"
+      },
+      "responses": {
+        "200": "AI-generated advisory response",
+        "429": "Rate limit exceeded",
+        "503": "AI service unavailable"
+      },
+      "auth_required": true,
+      "required_roles": [],
+      "business_rules": ["BR-007", "BR-008"],
+      "source": "docs/API_REFERENCE.md"
+    },
+    {
+      "method": "GET",
+      "path": "/api/advisory/history",
+      "summary": "Get advisory conversation history",
+      "request_body": {},
+      "responses": {
+        "200": "Paginated advisory history"
+      },
+      "auth_required": true,
+      "required_roles": [],
+      "business_rules": [],
+      "source": "docs/API_REFERENCE.md"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/advisory/:id",
+      "summary": "Update advisory (bookmark or rate)",
+      "request_body": {
+        "rating": "number (1-5)",
+        "isBookmarked": "boolean"
+      },
+      "responses": {
+        "200": "Advisory updated",
+        "404": "Advisory not found"
+      },
+      "auth_required": true,
+      "required_roles": [],
+      "business_rules": [],
+      "source": "docs/API_REFERENCE.md"
+    },
+    {
+      "method": "POST",
+      "path": "/api/farms",
+      "summary": "Create a new farm with GeoJSON boundary",
+      "request_body": {
+        "name": "string",
+        "description": "string",
+        "location": "GeoJSON Polygon",
+        "center": "GeoJSON Point",
+        "area": { "value": "number", "unit": "string" },
+        "soilType": "string",
+        "address": "object"
+      },
+      "responses": {
+        "201": "Farm created successfully",
+        "400": "Invalid polygon or validation error"
+      },
+      "auth_required": true,
+      "required_roles": [],
+      "business_rules": ["BR-009", "BR-010", "BR-011"],
+      "source": "docs/API_REFERENCE.md"
+    },
+    {
+      "method": "GET",
+      "path": "/api/farms",
+      "summary": "List all farms for authenticated user",
+      "request_body": {},
+      "responses": {
+        "200": "Array of farm objects"
+      },
+      "auth_required": true,
+      "required_roles": [],
+      "business_rules": [],
+      "source": "docs/API_REFERENCE.md"
+    },
+    {
+      "method": "GET",
+      "path": "/api/farms/:id",
+      "summary": "Get single farm by ID",
+      "request_body": {},
+      "responses": {
+        "200": "Farm details",
+        "404": "Farm not found"
+      },
+      "auth_required": true,
+      "required_roles": [],
+      "business_rules": [],
+      "source": "docs/API_REFERENCE.md"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/farms/:id",
+      "summary": "Update farm details and boundary",
+      "request_body": {
+        "name": "string",
+        "location": "GeoJSON Polygon",
+        "area": "object"
+      },
+      "responses": {
+        "200": "Farm updated",
+        "404": "Farm not found"
+      },
+      "auth_required": true,
+      "required_roles": [],
+      "business_rules": ["BR-010", "BR-011"],
+      "source": "docs/API_REFERENCE.md"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/farms/:id",
+      "summary": "Delete farm (soft delete)",
+      "request_body": {},
+      "responses": {
+        "200": "Farm deleted",
+        "404": "Farm not found"
+      },
+      "auth_required": true,
+      "required_roles": [],
+      "business_rules": [],
+      "source": "docs/API_REFERENCE.md"
+    },
+    {
+      "method": "POST",
+      "path": "/api/cost/estimate",
+      "summary": "Estimate crop cultivation costs",
+      "request_body": {
+        "cropName": "string",
+        "area": "number",
+        "customCosts": "object (optional)"
+      },
+      "responses": {
+        "200": "Cost estimation with breakdown, yield, revenue, profit, and ROI"
+      },
+      "auth_required": true,
+      "required_roles": [],
+      "business_rules": ["BR-012"],
+      "source": "docs/API_REFERENCE.md"
+    },
+    {
+      "method": "GET",
+      "path": "/api/cost/crops",
+      "summary": "Get list of supported crops for cost estimation",
+      "request_body": {},
+      "responses": {
+        "200": "Array of crop names"
+      },
+      "auth_required": false,
+      "required_roles": [],
+      "business_rules": [],
+      "source": "docs/API_REFERENCE.md"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/cost/crop/:id",
+      "summary": "Save or update cost estimation record",
+      "request_body": {
+        "cropName": "string",
+        "totalCost": "number",
+        "expectedRevenue": "number"
+      },
+      "responses": {
+        "200": "Cost estimation saved"
+      },
+      "auth_required": true,
+      "required_roles": [],
+      "business_rules": [],
+      "source": "docs/API_REFERENCE.md"
+    },
+    {
+      "method": "GET",
+      "path": "/api/health",
+      "summary": "Health check endpoint for API and ML service status",
+      "request_body": {},
+      "responses": {
+        "200": "Service health status with ML service availability"
+      },
+      "auth_required": false,
+      "required_roles": [],
+      "business_rules": [],
+      "source": "docs/API_REFERENCE.md"
+    }
+  ],
+  "pages": [
+    {
+      "name": "Farm Map",
+      "path": "/farm-map",
+      "auth_required": true,
+      "roles": ["farmer", "admin"],
+      "components": ["MapCanvas", "MapOverlay", "FarmPanel", "FarmCard", "FarmForm", "FarmDetail"],
+      "links_to": ["/dashboard"],
+      "forms": [
+        {
+          "name": "FarmForm",
+          "fields": ["name", "description", "soilType", "terrain", "waterSource", "address"],
+          "submit_action": "POST /api/farms",
+          "validations": {
+            "name": "required, 2-100 chars",
+            "location": "required, valid GeoJSON polygon with at least 4 points",
+            "area": "required, positive number"
+          }
+        }
+      ],
+      "source": "docs/FARM_MAPPING_GUIDE.md"
+    },
+    {
+      "name": "Disease Detection",
+      "path": "/",
+      "auth_required": false,
+      "roles": [],
+      "components": ["FileUpload", "ImagePreview", "ResultDisplay", "ConfidenceBar", "AIAdvisory"],
+      "links_to": ["/dashboard", "/login"],
+      "forms": [
+        {
+          "name": "DiseaseDetectionForm",
+          "fields": ["image", "farmId", "cropId"],
+          "submit_action": "POST /api/disease/detect",
+          "validations": {
+            "image": "required, JPEG/PNG/WebP, max 10MB"
+          }
+        }
+      ],
+      "source": "docs/IMAGE_UPLOAD_ML_GUIDE.md"
+    },
+    {
+      "name": "Dashboard",
+      "path": "/dashboard",
+      "auth_required": true,
+      "roles": ["farmer", "admin"],
+      "components": ["FieldMapView", "WeatherWidget", "CropAdvisoryPanel", "SavedFieldsDrawer"],
+      "links_to": ["/farm-map", "/"],
+      "forms": [],
+      "source": "docs/review.md"
+    }
+  ],
+  "user_flows": [],
+  "business_rules": [
+    {
+      "id": "BR-001",
+      "description": "New users must register with name, email, and password. Default role is 'farmer'.",
+      "category": "validation",
+      "entities": ["User"],
+      "endpoints": ["POST /api/auth/register"],
+      "source": "docs/API_REFERENCE.md"
+    },
+    {
+      "id": "BR-002",
+      "description": "Users must authenticate with valid email and password to receive JWT token.",
+      "category": "authorization",
+      "entities": ["User"],
+      "endpoints": ["POST /api/auth/login"],
+      "source": "docs/API_REFERENCE.md"
+    },
+    {
+      "id": "BR-003",
+      "description": "After 5 failed login attempts, user account is locked for 30 minutes.",
+      "category": "constraint",
+      "entities": ["User"],
+      "endpoints": ["POST /api/auth/login"],
+      "source": "docs/DATABASE_DESIGN.md"
+    },
+    {
+      "id": "BR-004",
+      "description": "Disease detection accepts only image files (JPEG, PNG, WebP) up to 10MB.",
+      "category": "validation",
+      "entities": ["DiseaseReport"],
+      "endpoints": ["POST /api/disease/detect"],
+      "source": "docs/API_REFERENCE.md"
+    },
+    {
+      "id": "BR-005",
+      "description": "ML service must verify image file magic bytes (header) to prevent file spoofing.",
+      "category": "validation",
+      "entities": ["DiseaseReport"],
+      "endpoints": ["POST /api/disease/detect"],
+      "source": "docs/IMAGE_UPLOAD_ML_GUIDE.md"
+    },
+    {
+      "id": "BR-006",
+      "description": "Disease detection confidence levels: HIGH (>=85%), MODERATE (65-84%), LOW (50-64%), VERY LOW (<50%).",
+      "category": "conditional",
+      "entities": ["DiseaseReport"],
+      "endpoints": ["POST /api/disease/detect"],
+      "source": "docs/IMAGE_UPLOAD_ML_GUIDE.md"
+    },
+    {
+      "id": "BR-007",
+      "description": "AI advisory requests are rate-limited to 10 requests per minute per user.",
+      "category": "constraint",
+      "entities": ["Advisory"],
+      "endpoints": ["POST /api/advisory/ask"],
+      "source": "docs/GEMINI_AI_GUIDE.md"
+    },
+    {
+      "id": "BR-008",
+      "description": "If Gemini AI service is unavailable, system must provide fallback advisory from ML model's disease info database.",
+      "category": "conditional",
+      "entities": ["Advisory"],
+      "endpoints": ["POST /api/advisory/ask", "POST /api/advisory/disease"],
+      "source": "docs/GEMINI_AI_GUIDE.md"
+    },
+    {
+      "id": "BR-009",
+      "description": "Farm polygons must have at least 4 points (3 unique + 1 closing point).",
+      "category": "validation",
+      "entities": ["Farm"],
+      "endpoints": ["POST /api/farms", "PUT /api/farms/:id"],
+      "source": "docs/FARM_MAPPING_GUIDE.md"
+    },
+    {
+      "id": "BR-010",
+      "description": "Farm polygon coordinates must be in GeoJSON format with longitude before latitude.",
+      "category": "validation",
+      "entities": ["Farm"],
+      "endpoints": ["POST /api/farms", "PUT /api/farms/:id"],
+      "source": "docs/FARM_MAPPING_GUIDE.md"
+    },
+    {
+      "id": "BR-011",
+      "description": "Farm area must be between 10 m² minimum and 10,000 hectares maximum.",
+      "category": "validation",
+      "entities": ["Farm"],
+      "endpoints": ["POST /api/farms", "PUT /api/farms/:id"],
+      "source": "docs/FARM_MAPPING_GUIDE.md"
+    },
+    {
+      "id": "BR-012",
+      "description": "Cost estimation calculates total cost, expected yield, revenue, profit, and ROI based on crop and area.",
+      "category": "conditional",
+      "entities": ["CostEstimation"],
+      "endpoints": ["POST /api/cost/estimate"],
+      "source": "docs/API_REFERENCE.md"
+    },
+    {
+      "id": "BR-013",
+      "description": "CRITICAL: Users can register as admin by passing role='admin' in registration request. This is a privilege escalation vulnerability.",
+      "category": "authorization",
+      "entities": ["User"],
+      "endpoints": ["POST /api/auth/register"],
+      "source": "docs/review.md"
+    },
+    {
+      "id": "BR-014",
+      "description": "CRITICAL: Notification endpoint allows IDOR attack via email query parameter without authentication.",
+      "category": "authorization",
+      "entities": ["Notification"],
+      "endpoints": ["GET /api/blog/notifications"],
+      "source": "docs/review.md"
+    },
+    {
+      "id": "BR-015",
+      "description": "HIGH: Unauthenticated users can upload disease images that are saved to disk but never deleted, causing storage exhaustion.",
+      "category": "constraint",
+      "entities": ["DiseaseReport"],
+      "endpoints": ["POST /api/disease/detect"],
+      "source": "docs/review.md"
+    }
+  ],
+  "state_machines": [
+    {
+      "entity": "Crop",
+      "field": "status",
+      "states": ["planned", "planted", "growing", "harvested", "failed"],
+      "transitions": [
+        { "from": "planned", "to": "planted", "trigger": "User marks crop as planted" },
+        { "from": "planted", "to": "growing", "trigger": "User updates crop status after growth begins" },
+        { "from": "growing", "to": "harvested", "trigger": "User records harvest date and yield" },
+        { "from": "growing", "to": "failed", "trigger": "Crop fails due to disease or weather" },
+        { "from": "planned", "to": "failed", "trigger": "Crop never planted and season ended" }
+      ],
+      "invalid_transitions": [
+        { "from": "harvested", "to": "planted", "reason": "Cannot replant already harvested crop" },
+        { "from": "failed", "to": "growing", "reason": "Failed crops cannot resume growth" }
+      ],
+      "source": "docs/DATABASE_DESIGN.md"
+    }
+  ]
+}

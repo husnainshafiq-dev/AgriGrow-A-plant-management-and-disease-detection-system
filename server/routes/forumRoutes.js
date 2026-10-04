@@ -20,17 +20,17 @@ const { protect, authorize, optionalAuth } = require("../middleware/auth");
 
 router.get("/categories", getCategories);
 router.get("/threads", listThreads);
-router.post("/threads", optionalAuth, createThread);
+router.post("/threads", protect, createThread);
 router.get("/threads/:slug", getThread);
-router.post("/threads/:slug/replies", optionalAuth, addReply);
-router.post("/threads/:id/upvote", optionalAuth, upvoteThread);
-router.post("/replies/:id/upvote", optionalAuth, upvoteReply);
+router.post("/threads/:slug/replies", protect, addReply);
+router.post("/threads/:id/upvote", protect, upvoteThread);
+router.post("/replies/:id/upvote", protect, upvoteReply);
 router.post("/replies/:replyId/solution", protect, markSolved);
-router.post("/reports", optionalAuth, reportContent);
+router.post("/reports", protect, reportContent);
 
-router.get("/admin/moderation", protect, authorize("admin"), listModeration);
-router.patch("/admin/threads/:id", protect, authorize("admin"), moderateThread);
-router.patch("/admin/replies/:id", protect, authorize("admin"), moderateReply);
-router.patch("/admin/reports/:id", protect, authorize("admin"), reviewReport);
+router.get("/admin/moderation", protect, authorize("admin", "editor", "superadmin"), listModeration);
+router.patch("/admin/threads/:id", protect, authorize("admin", "editor", "superadmin"), moderateThread);
+router.patch("/admin/replies/:id", protect, authorize("admin", "editor", "superadmin"), moderateReply);
+router.patch("/admin/reports/:id", protect, authorize("admin", "editor", "superadmin"), reviewReport);
 
 module.exports = router;

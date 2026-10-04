@@ -74,6 +74,16 @@ router
     .post(validateBody(createFarmSchema), createFarm)
     .get(getFarms);
 
+// ============================================================
+// Geospatial Routes (STEP 5.2) — must precede /:id to prevent shadowing
+// ============================================================
+
+/**
+ * @route   GET /api/farms/nearby?lng=73.85&lat=18.52&radius=5000
+ * @desc    Find farms near a given coordinate point
+ */
+router.get("/nearby", getNearbyFarms);
+
 /**
  * @route   GET    /api/farms/:id
  * @desc    Get single farm with full details
@@ -110,16 +120,6 @@ router.delete(
     "/:id/crop-history/:entryId",
     removeCropHistory
 );
-
-// ============================================================
-// Geospatial Routes (STEP 5.2)
-// ============================================================
-
-/**
- * @route   GET /api/farms/nearby?lng=73.85&lat=18.52&radius=5000
- * @desc    Find farms near a given coordinate point
- */
-router.get("/nearby", getNearbyFarms);
 
 // ============================================================
 // Statistics & Analysis Routes

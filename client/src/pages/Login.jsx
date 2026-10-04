@@ -60,6 +60,23 @@ export default function Login() {
                 <h3 className="auth-title">{t("auth.loginTitle")}</h3>
                 <p className="auth-sub">{t("auth.loginSub")}</p>
 
+                {redirectPath && redirectPath !== "/dashboard" && redirectPath !== "/" && (
+                    <div className="auth-redirect-notice">
+                        <span className="notice-icon">🔐</span>
+                        <span>
+                            {redirectPath.startsWith("/market")
+                                ? "Please log in to view Market Prices and live mandi rates."
+                                : redirectPath.startsWith("/qa")
+                                ? "Please log in to view Expert Consultation Q&A."
+                                : redirectPath.startsWith("/community")
+                                ? "Please log in to view community guides and discussions."
+                                : redirectPath.startsWith("/calendar")
+                                ? "Please log in to access your Crop Calendar."
+                                : "Please log in to access this feature."}
+                        </span>
+                    </div>
+                )}
+
                 {error && <div className="auth-error">{error}</div>}
 
                 <form onSubmit={handleSubmit} className="auth-form">
