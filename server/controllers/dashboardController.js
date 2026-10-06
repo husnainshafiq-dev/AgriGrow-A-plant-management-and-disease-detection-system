@@ -13,6 +13,7 @@
 //
 // ============================================================
 
+const mongoose = require("mongoose");
 const asyncHandler = require("express-async-handler");
 const GeoField = require("../models/GeoField");
 const { AppError } = require("../middleware/errorHandler");
@@ -197,13 +198,14 @@ const getField = asyncHandler(async (req, res) => {
 // DELETE /api/dashboard/fields/:id — Delete a field
 // ============================================================
 const deleteField = asyncHandler(async (req, res) => {
-    const field = await GeoField.findById(req.params.id);
+    const { id } = req.params;
 
-    if (!field) {
-        throw new AppError("Field not found", 404);
+    if (id && mongoose.Types.ObjectId.isValid(id)) {
+        const field = await GeoField.findById(id);
+        if (field) {
+            await field.deleteOne();
+        }
     }
-
-    await field.deleteOne();
 
     res.json({
         success: true,

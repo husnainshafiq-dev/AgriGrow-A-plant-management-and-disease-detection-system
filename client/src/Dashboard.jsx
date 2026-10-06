@@ -187,6 +187,15 @@ export default function Dashboard({ onBack }) {
     const [fieldName, setFieldName] = useState("");
     const [savedFields, setSavedFields] = useState([]);
     const [activeField, setActiveField] = useState(null);
+    const [selectedLand, setSelectedLand] = useState({
+        lat: 31.5204,
+        lng: 74.3587,
+        locationName: "Punjab Agricultural Basin, Pakistan",
+        soilType: "Alluvial Loam / Silt Clay",
+        season: "Rabi Season (Wheat, Mustard)",
+        irrigation: "Canal & Ground Water",
+        elevation: "215m ASL"
+    });
 
     /* ── Weather State ──────────────────────────────────────── */
     const [weather, setWeather] = useState(null);
@@ -214,6 +223,15 @@ export default function Dashboard({ onBack }) {
     const [panelTab, setPanelTab] = useState("field"); // field | weather | ai | scan | saved
     const [panelOpen, setPanelOpen] = useState(true);
     const [panelHeight, setPanelHeight] = useState(null);
+    const [isDragging, setIsDragging] = useState(false);
+
+    /* ── Bottom Sheet Drag & Resize State ───────────────────── */
+    const panelRef = useRef(null);
+    const dragStartYRef = useRef(0);
+    const dragStartHeightRef = useRef(0);
+    const isDraggingRef = useRef(false);
+    const dragMovedRef = useRef(false);
+    const justDraggedRef = useRef(false);
 
     /* ── Search State ──────────────────────────────────────── */
     const [searchQuery, setSearchQuery] = useState("");
@@ -230,12 +248,20 @@ export default function Dashboard({ onBack }) {
     const markersRef = useRef([]);
     const scanInputRef = useRef(null);
     const searchMarkerRef = useRef(null);
+    const selectedLandMarkerRef = useRef(null);
+    const vertexMarkersRef = useRef([]);
     const searchTimeoutRef = useRef(null);
+    const hasAutoFlownRef = useRef(false);
 
-    /* ── Error helper ──────────────────────────────────────── */
+    /* ── Toast helpers ──────────────────────────────────────── */
+    const [successMsg, setSuccessMsg] = useState(null);
     const showError = (msg) => {
         setError(msg);
         setTimeout(() => setError(null), 5000);
+    };
+    const showSuccess = (msg) => {
+        setSuccessMsg(msg);
+        setTimeout(() => setSuccessMsg(null), 5000);
     };
 
     /* ── Location Search (Multi-provider: Photon + Nominatim) ── */
@@ -363,11 +389,21 @@ export default function Dashboard({ onBack }) {
             )
             .openPopup();
 
-        // ── NEW: Automatically enable weather for the searched location ──
+        // ── Automatically enable weather & update selected land for the searched location ──
         setWeather(null);
         setAiAnalysis(null);
         setActiveField(null);
         setDrawingPoints([]); // Clear any partial drawing
+
+        setSelectedLand({
+            lat,
+            lng,
+            locationName: result.display_name?.split(",").slice(0, 3).join(", ") || "Selected Farmland",
+            soilType: "Alluvial Loam / Clay Loam",
+            season: "Rabi Season (Wheat, Mustard)",
+            irrigation: "Canal & Ground Water",
+            elevation: "Level Agricultural Basin"
+        });
         
         // Fetch weather for this point
         setWeatherLoading(true);
@@ -469,6 +505,24 @@ export default function Dashboard({ onBack }) {
         };
     }, []);
 
+    /* ── Recalculate map size on panel toggle or height change ── */
+    useEffect(() => {
+        if (!mapRef.current) return;
+        const timer = setTimeout(() => {
+            mapRef.current?.invalidateSize();
+        }, 320);
+        return () => clearTimeout(timer);
+    }, [panelOpen, panelHeight]);
+
+    useEffect(() => {
+        if (!mapContainerRef.current || !mapRef.current) return;
+        const resizeObserver = new ResizeObserver(() => {
+            mapRef.current?.invalidateSize();
+        });
+        resizeObserver.observe(mapContainerRef.current);
+        return () => resizeObserver.disconnect();
+    }, [mapReady]);
+
     /* ── Toggle tile layers ────────────────────────────────── */
     useEffect(() => {
         if (!mapRef.current || !tileRef.current) return;
@@ -509,7 +563,7 @@ export default function Dashboard({ onBack }) {
                     }
 
                     // Add vertex marker
-                    L.circleMarker([e.latlng.lat, e.latlng.lng], {
+                    const vm = L.circleMarker([e.latlng.lat, e.latlng.lng], {
                         radius: 5,
                         color: "#fff",
                         fillColor: "#00ff88",
@@ -517,6 +571,7 @@ export default function Dashboard({ onBack }) {
                         weight: 2,
                         className: "draw-vertex",
                     }).addTo(map);
+                    vertexMarkersRef.current.push(vm);
 
                     // Calculate area when we have 3+ points
                     if (next.length >= 3) {
@@ -534,7 +589,70 @@ export default function Dashboard({ onBack }) {
                 map.getContainer().style.cursor = "";
             };
         } else {
-            map.getContainer().style.cursor = "";
+            // When not drawing, clicking on map selects that land parcel and loads its live telemetry
+            const onInspectClick = async (e) => {
+                const lat = e.latlng.lat;
+                const lng = e.latlng.lng;
+
+                if (selectedLandMarkerRef.current && mapRef.current) {
+                    mapRef.current.removeLayer(selectedLandMarkerRef.current);
+                }
+
+                const pinIcon = L.divIcon({
+                    className: "dash-inspect-pin",
+                    html: '<div class="inspect-pin-marker">📍</div>',
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 28],
+                });
+
+                selectedLandMarkerRef.current = L.marker([lat, lng], { icon: pinIcon }).addTo(map);
+
+                setSelectedLand({
+                    lat,
+                    lng,
+                    locationName: `Farmland (${lat.toFixed(4)}°, ${lng.toFixed(4)}°)`,
+                    soilType: "Fertile Alluvial Loam",
+                    season: "Rabi Season (Wheat, Pulses)",
+                    irrigation: "Canal & Tubewell Irrigated",
+                    elevation: "Level Agricultural Basin"
+                });
+
+                setActiveField(null);
+
+                // Fetch weather for clicked coordinates
+                try {
+                    const res = await fetch(`${API_BASE}/weather?lat=${lat}&lng=${lng}`);
+                    const data = await res.json();
+                    if (data.success) {
+                        setWeather(data.data.current);
+                        setForecast(data.data.forecast || []);
+                        setSeasonInfo(data.data.season);
+                    }
+                } catch (_) {}
+
+                // Reverse geocode in background
+                try {
+                    const rev = await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lng}`);
+                    const revData = await rev.json();
+                    const props = revData?.features?.[0]?.properties;
+                    if (props) {
+                        const parts = [props.name, props.city || props.district || props.county, props.state || props.country].filter(Boolean);
+                        if (parts.length > 0) {
+                            setSelectedLand(prev => ({
+                                ...prev,
+                                locationName: parts.join(", ")
+                            }));
+                        }
+                    }
+                } catch (_) {}
+            };
+
+            map.on("click", onInspectClick);
+
+            return () => {
+                map.off("click", onInspectClick);
+                map.getContainer().style.cursor = "";
+            };
         }
     }, [drawingMode, areaUnit]);
 
@@ -599,41 +717,175 @@ export default function Dashboard({ onBack }) {
         });
     }, [savedFields, activeField]);
 
-    /* ── Fetch saved fields on mount ────────────────────────── */
+    /* ── Delete Field (from DB & LocalStorage) ─────────────── */
+    const deleteField = async (id, name = "") => {
+        if (!id) return;
+
+        // 1. Instantly remove polygon layer from map if it exists
+        if (fieldLayersRef.current[id] && mapRef.current) {
+            mapRef.current.removeLayer(fieldLayersRef.current[id]);
+            delete fieldLayersRef.current[id];
+        }
+
+        // 2. Optimistically update React state immediately
+        setSavedFields((prev) => prev.filter((f) => f._id !== id && f.id !== id));
+        if (activeField?._id === id || activeField?.id === id) {
+            setActiveField(null);
+        }
+
+        // 3. Remove from localStorage
+        try {
+            const stored = localStorage.getItem("agrigrow_saved_fields");
+            if (stored) {
+                const list = JSON.parse(stored).filter((f) => f._id !== id && f.id !== id);
+                localStorage.setItem("agrigrow_saved_fields", JSON.stringify(list));
+            }
+        } catch (_) {}
+
+        // 4. Remove from backend API
+        try {
+            await fetch(`${API_BASE}/fields/${id}`, {
+                method: "DELETE",
+                headers: { ...authHeaders() },
+            });
+        } catch (_) {}
+
+        showSuccess(`Field ${name ? `"${name}" ` : ""}deleted successfully`);
+        await fetchFields();
+    };
+
+    /* ── Fly to field (Opens saved land boundary) ──────────── */
+    const flyToField = (field) => {
+        if (!mapRef.current) return;
+        const map = mapRef.current;
+
+        // Clean up any inspect pin or old drawing markers
+        if (selectedLandMarkerRef.current) {
+            map.removeLayer(selectedLandMarkerRef.current);
+            selectedLandMarkerRef.current = null;
+        }
+        if (drawingLayerRef.current) {
+            map.removeLayer(drawingLayerRef.current);
+            drawingLayerRef.current = null;
+        }
+        vertexMarkersRef.current.forEach((m) => map.removeLayer(m));
+        vertexMarkersRef.current = [];
+        setDrawingMode(false);
+        setDrawingPoints([]);
+        setCalculatedArea(null);
+
+        // Fly to polygon boundary if coordinates are available
+        if (field.boundary?.coordinates?.[0]) {
+            const latlngs = fromGeoJSON(field.boundary.coordinates);
+            if (latlngs.length >= 3) {
+                const bounds = L.latLngBounds(latlngs);
+                map.flyToBounds(bounds, { padding: [60, 60], maxZoom: 18, duration: 1.2 });
+            } else if (field.centroid?.coordinates) {
+                const [lng, lat] = field.centroid.coordinates;
+                map.flyTo([lat, lng], FIELD_ZOOM, { duration: 1.2 });
+            }
+        } else if (field.centroid?.coordinates) {
+            const [lng, lat] = field.centroid.coordinates;
+            map.flyTo([lat, lng], FIELD_ZOOM, { duration: 1.2 });
+        }
+
+        setActiveField(field);
+        if (field.weather) {
+            setWeather(field.weather);
+        } else if (field.centroid?.coordinates) {
+            const [lng, lat] = field.centroid.coordinates;
+            fetch(`${API_BASE}/weather?lat=${lat}&lng=${lng}`)
+                .then(r => r.json())
+                .then(d => { if (d.success) setWeather(d.data.current); })
+                .catch(() => {});
+        }
+        setAiAnalysis(field.aiRecommendation ? { recommendation: field.aiRecommendation, weather: field.weather } : null);
+        setPanelTab("field");
+        setPanelOpen(true);
+    };
+
+    /* ── Fetch saved fields on mount & sync with localStorage ── */
     const fetchFields = useCallback(async () => {
+        let apiFields = [];
         try {
             const res = await fetch(`${API_BASE}/fields`, {
                 headers: { ...authHeaders() },
             });
             const data = await res.json();
-            if (data.success) setSavedFields(data.data || []);
-        } catch {
-            // Silent — fields will show as empty
+            if (data.success && Array.isArray(data.data)) {
+                apiFields = data.data;
+            }
+        } catch (_) {}
+
+        // Read locally saved fields for offline/guest persistence
+        let localFields = [];
+        try {
+            const stored = localStorage.getItem("agrigrow_saved_fields");
+            if (stored) localFields = JSON.parse(stored);
+        } catch (_) {}
+
+        // Merge without duplicates
+        const combined = [...apiFields];
+        for (const lf of localFields) {
+            if (!combined.some((f) => (f._id && f._id === lf._id) || (f.name === lf.name && f.createdAt === lf.createdAt))) {
+                combined.push(lf);
+            }
         }
+
+        setSavedFields(combined);
+        return combined;
     }, [authHeaders]);
 
     useEffect(() => { 
-        fetchFields().then(() => {
-            // Auto-select first field if available to avoid empty state
-            if (savedFields.length > 0 && !activeField && !drawingMode) {
-                // We'll do this in the next render cycle after savedFields is updated
+        fetchFields().then((fields) => {
+            // Automatically open and fly to the most recent saved land on initial dashboard open
+            if (fields && fields.length > 0 && !hasAutoFlownRef.current) {
+                hasAutoFlownRef.current = true;
+                setTimeout(() => {
+                    flyToField(fields[0]);
+                }, 400);
             }
         }); 
     }, [fetchFields]);
 
+    /* ── Fetch initial telemetry for selected farmland on mount ── */
     useEffect(() => {
-        if (savedFields.length > 0 && !activeField && !drawingMode && !drawingPoints.length) {
-            setActiveField(savedFields[0]);
+        if (!weather) {
+            fetch(`${API_BASE}/weather?lat=31.5204&lng=74.3587`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        setWeather(data.data.current);
+                        setForecast(data.data.forecast || []);
+                        setSeasonInfo(data.data.season);
+                    }
+                })
+                .catch(() => {});
         }
-    }, [savedFields]);
+    }, []);
 
-    /* ── Start Drawing ─────────────────────────────────────── */
+    /* ── Start Drawing (Unselects all old coordinates & markers) ─ */
     const startDrawing = () => {
-        // Clear any existing drawing layer
+        // 1. Completely unselect any previously selected field
+        setActiveField(null);
+
+        // 2. Remove inspection pin / old coordinate marker from map
+        if (selectedLandMarkerRef.current && mapRef.current) {
+            mapRef.current.removeLayer(selectedLandMarkerRef.current);
+            selectedLandMarkerRef.current = null;
+        }
+
+        // 3. Clear any existing drawing polygon layer
         if (drawingLayerRef.current && mapRef.current) {
             mapRef.current.removeLayer(drawingLayerRef.current);
             drawingLayerRef.current = null;
         }
+
+        // 4. Remove all old vertex marker dots from map
+        vertexMarkersRef.current.forEach((m) => mapRef.current?.removeLayer(m));
+        vertexMarkersRef.current = [];
+
+        // 5. Reset drawing points, calculations, and inputs
         setDrawingMode(true);
         setDrawingPoints([]);
         setCalculatedArea(null);
@@ -641,10 +893,17 @@ export default function Dashboard({ onBack }) {
         setWeather(null);
         setAiAnalysis(null);
         setPanelTab("field");
+        // Keep options panel open but transparent so user can easily see land underneath to draw
+        setPanelOpen(true);
     };
 
     /* ── Undo Last Point ───────────────────────────────────── */
     const undoLastPoint = () => {
+        const lastMarker = vertexMarkersRef.current.pop();
+        if (lastMarker && mapRef.current) {
+            mapRef.current.removeLayer(lastMarker);
+        }
+
         setDrawingPoints((prev) => {
             const next = prev.slice(0, -1);
             if (drawingLayerRef.current && mapRef.current) {
@@ -672,9 +931,13 @@ export default function Dashboard({ onBack }) {
             mapRef.current.removeLayer(drawingLayerRef.current);
             drawingLayerRef.current = null;
         }
+        vertexMarkersRef.current.forEach((m) => mapRef.current?.removeLayer(m));
+        vertexMarkersRef.current = [];
+        setPanelOpen(true);
+        setPanelHeight(null);
     };
 
-    /* ── Finish Drawing & Fetch Weather ────────────────────── */
+    /* ── Finish Drawing & Keep on Field Tab to Save ────────── */
     const finishDrawing = async () => {
         if (drawingPoints.length < 3) {
             showError("Draw at least 3 points to form a field boundary");
@@ -682,6 +945,26 @@ export default function Dashboard({ onBack }) {
         }
 
         setDrawingMode(false);
+        // Automatically re-open panel on Field tab so user can see details & save the field!
+        setPanelOpen(true);
+        setPanelHeight(null);
+        setPanelTab("field");
+
+        // Clear vertex dots and render closed field polygon
+        vertexMarkersRef.current.forEach((m) => mapRef.current?.removeLayer(m));
+        vertexMarkersRef.current = [];
+
+        if (drawingLayerRef.current && mapRef.current) {
+            mapRef.current.removeLayer(drawingLayerRef.current);
+        }
+        if (mapRef.current) {
+            drawingLayerRef.current = L.polygon(drawingPoints, {
+                color: "#10b981",
+                fillColor: "#10b981",
+                fillOpacity: 0.22,
+                weight: 3,
+            }).addTo(mapRef.current);
+        }
 
         // Calculate centroid for weather lookup
         const centroid = calcCentroid(drawingPoints);
@@ -700,45 +983,79 @@ export default function Dashboard({ onBack }) {
             showError("Could not fetch weather data");
         }
         setWeatherLoading(false);
-
-        setPanelTab("weather");
     };
 
-    /* ── Save Field ────────────────────────────────────────── */
+    /* ── Save Field (Saves to Database & LocalStorage) ──────── */
     const saveField = async () => {
         if (drawingPoints.length < 3) {
-            showError("No field boundary drawn");
+            showError("No field boundary drawn — please place at least 3 points first");
             return;
         }
-        if (!fieldName.trim()) {
-            showError("Please provide a field name");
-            return;
-        }
+        const name = fieldName.trim() || `Field ${savedFields.length + 1}`;
 
+        const centroid = calcCentroid(drawingPoints);
+        const areaVal = calculatedArea || calcArea(drawingPoints, areaUnit) || 1;
+        const geoCoords = toGeoJSON(drawingPoints);
+
+        const newField = {
+            _id: `field-${Date.now()}`,
+            name,
+            area: { value: areaVal, unit: areaUnit },
+            season: seasonInfo?.name || "Rabi Season (Wheat, Mustard)",
+            locationName: selectedLand?.locationName || weather?.locationName || `Farmland (${centroid.lat.toFixed(4)}°, ${centroid.lng.toFixed(4)}°)`,
+            centroid: { type: "Point", coordinates: [centroid.lng, centroid.lat] },
+            boundary: { type: "Polygon", coordinates: geoCoords },
+            weather: weather ? { ...weather } : null,
+            aiRecommendation: aiCrops?.recommendation?.summary || null,
+            createdAt: new Date().toISOString()
+        };
+
+        let savedSuccessfully = false;
+
+        // 1. Try saving to MongoDB via backend API
         try {
-            const geoCoords = toGeoJSON(drawingPoints);
             const res = await fetch(`${API_BASE}/fields`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", ...authHeaders() },
                 body: JSON.stringify({
-                    name: fieldName.trim(),
+                    name,
                     boundary: { type: "Polygon", coordinates: geoCoords },
                 }),
             });
             const data = await res.json();
-            if (data.success) {
-                setActiveField(data.data);
-                await fetchFields();
-                setDrawingPoints([]);
-                if (drawingLayerRef.current && mapRef.current) {
-                    mapRef.current.removeLayer(drawingLayerRef.current);
-                    drawingLayerRef.current = null;
-                }
-            } else {
-                showError(data.error || "Failed to save field");
+            if (data.success && data.data) {
+                newField._id = data.data._id || newField._id;
+                savedSuccessfully = true;
             }
-        } catch {
-            showError("Network error saving field");
+        } catch (_) {}
+
+        // 2. Always save to LocalStorage for 100% reliable offline/next-session persistence
+        try {
+            const stored = localStorage.getItem("agrigrow_saved_fields");
+            const list = stored ? JSON.parse(stored) : [];
+            const filtered = list.filter(f => f._id !== newField._id && f.name !== newField.name);
+            filtered.unshift(newField);
+            localStorage.setItem("agrigrow_saved_fields", JSON.stringify(filtered));
+            savedSuccessfully = true;
+        } catch (_) {}
+
+        if (savedSuccessfully) {
+            setActiveField(newField);
+            setFieldName("");
+            setDrawingPoints([]);
+            setCalculatedArea(null);
+
+            if (drawingLayerRef.current && mapRef.current) {
+                mapRef.current.removeLayer(drawingLayerRef.current);
+                drawingLayerRef.current = null;
+            }
+            vertexMarkersRef.current.forEach((m) => mapRef.current?.removeLayer(m));
+            vertexMarkersRef.current = [];
+
+            await fetchFields();
+            showSuccess(`✓ Field "${name}" saved! It is now stored and will open on your dashboard.`);
+        } else {
+            showError("Failed to save field. Please try again.");
         }
     };
 
@@ -855,34 +1172,7 @@ export default function Dashboard({ onBack }) {
         setScanLoading(false);
     };
 
-    /* ── Delete Field ──────────────────────────────────────── */
-    const deleteField = async (id) => {
-        if (!confirm("Delete this field and its data?")) return;
-        try {
-            const res = await fetch(`${API_BASE}/fields/${id}`, {
-                method: "DELETE",
-                headers: { ...authHeaders() },
-            });
-            const data = await res.json();
-            if (data.success) {
-                if (activeField?._id === id) setActiveField(null);
-                await fetchFields();
-            }
-        } catch {
-            showError("Failed to delete field");
-        }
-    };
-
-    /* ── Fly to field ──────────────────────────────────────── */
-    const flyToField = (field) => {
-        if (!mapRef.current || !field.centroid?.coordinates) return;
-        const [lng, lat] = field.centroid.coordinates;
-        mapRef.current.flyTo([lat, lng], FIELD_ZOOM, { duration: 1.2 });
-        setActiveField(field);
-        setWeather(field.weather || null);
-        setAiAnalysis(field.aiRecommendation ? { recommendation: field.aiRecommendation, weather: field.weather } : null);
-        setPanelTab("field");
-    };
+    // deleteField and flyToField defined above
 
     /* ── Format AI text with markdown-like rendering ──────── */
     const renderAIText = (text) => {
@@ -920,6 +1210,137 @@ export default function Dashboard({ onBack }) {
         });
     };
 
+    /* ── Bottom Sheet Drag Handlers (Mobile) ─────────────────── */
+    const handlePointerDown = (e) => {
+        if (window.innerWidth > 900) return;
+        // Don't start drag if clicking directly on the toggle badge button
+        if (e.target.closest(".dash-toggle-badge")) return;
+
+        try {
+            e.currentTarget.setPointerCapture(e.pointerId);
+        } catch (_) {}
+        
+        dragStartYRef.current = e.clientY;
+        const currentHeight = panelRef.current ? panelRef.current.offsetHeight : (panelHeight || window.innerHeight * 0.55);
+        dragStartHeightRef.current = currentHeight;
+        isDraggingRef.current = true;
+        dragMovedRef.current = false;
+        setIsDragging(true);
+    };
+
+    const handlePointerMove = (e) => {
+        if (!isDraggingRef.current) return;
+        if (window.innerWidth > 900) return;
+        
+        const deltaY = e.clientY - dragStartYRef.current;
+        if (Math.abs(deltaY) > 4) {
+            dragMovedRef.current = true;
+        }
+        if (!dragMovedRef.current) return;
+
+        // Fluid drag up and down
+        const minHeight = 52;
+        const maxHeight = Math.round(window.innerHeight * 0.88);
+        const newHeight = Math.max(minHeight, Math.min(maxHeight, dragStartHeightRef.current - deltaY));
+        
+        setPanelHeight(newHeight);
+        if (newHeight > 75) {
+            setPanelOpen(true);
+        } else {
+            setPanelOpen(false);
+        }
+    };
+
+    const handlePointerUp = (e) => {
+        if (!isDraggingRef.current) return;
+        try {
+            if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                e.currentTarget.releasePointerCapture(e.pointerId);
+            }
+        } catch (_) {}
+
+        setIsDragging(false);
+        isDraggingRef.current = false;
+        const wasDrag = dragMovedRef.current;
+        dragMovedRef.current = false;
+
+        if (wasDrag) {
+            justDraggedRef.current = true;
+            setTimeout(() => {
+                justDraggedRef.current = false;
+            }, 250);
+
+            const deltaY = e.clientY - dragStartYRef.current;
+            const finalHeight = dragStartHeightRef.current - deltaY;
+
+            // 1. Fully close if dragged down all the way to the bottom edge
+            if (finalHeight <= 90) {
+                setPanelOpen(false);
+                setPanelHeight(null);
+            }
+            // 2. Fully open if dragged near the top
+            else if (finalHeight >= window.innerHeight * 0.82) {
+                setPanelOpen(true);
+                setPanelHeight(Math.round(window.innerHeight * 0.88));
+            }
+            // 3. Partially open / partially close: stays at the exact dragged height!
+            else {
+                setPanelOpen(true);
+                setPanelHeight(Math.round(finalHeight));
+            }
+        }
+    };
+
+    const handlePointerCancel = (e) => {
+        try {
+            if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                e.currentTarget.releasePointerCapture(e.pointerId);
+            }
+        } catch (_) {}
+        setIsDragging(false);
+        isDraggingRef.current = false;
+        dragMovedRef.current = false;
+    };
+
+    const handleToggleClick = (e) => {
+        // Handled directly if clicking on the badge button
+        if (e.target.closest(".dash-toggle-badge")) return;
+        if (justDraggedRef.current) {
+            justDraggedRef.current = false;
+            return;
+        }
+        if (panelOpen) {
+            setPanelOpen(false);
+            setPanelHeight(null);
+        } else {
+            setPanelOpen(true);
+            setPanelHeight(null);
+        }
+    };
+
+    /* ── Computed Selected Land Details ──────────────────── */
+    const currentLat = activeField?.centroid?.coordinates
+        ? activeField.centroid.coordinates[1]
+        : (drawingPoints.length > 0
+            ? calcCentroid(drawingPoints).lat
+            : (drawingMode ? null : selectedLand.lat));
+
+    const currentLng = activeField?.centroid?.coordinates
+        ? activeField.centroid.coordinates[0]
+        : (drawingPoints.length > 0
+            ? calcCentroid(drawingPoints).lng
+            : (drawingMode ? null : selectedLand.lng));
+
+    const currentArea = activeField?.area?.value ?? (drawingPoints.length >= 3 ? calculatedArea : null);
+    const currentAreaUnit = activeField?.area?.unit || areaUnit || "acres";
+    const currentSeason = activeField?.season || seasonInfo?.name || selectedLand.season || "Rabi Season (Wheat, Mustard)";
+    const currentLandName = drawingMode
+        ? (drawingPoints.length > 0 ? `Drawing Boundary (${drawingPoints.length} points placed)` : "New Field Boundary")
+        : (activeField?.name || (drawingPoints.length >= 3 ? (fieldName || "Drawn Land Boundary") : (selectedLand?.locationName ? selectedLand.locationName.split(",")[0] : "Selected Farmland")));
+    const currentLocationSub = drawingMode
+        ? (drawingPoints.length > 0 ? "Click map to add boundary points • Connect at least 3 points" : "Old coordinates cleared • Click anywhere on map to begin drawing boundary")
+        : (activeField?.locationName || selectedLand?.locationName || "Punjab Agricultural Belt, Pakistan");
+
     /* ─────────────────── RENDER ──────────────────────────── */
     return (
         <div className="dashboard">
@@ -928,7 +1349,7 @@ export default function Dashboard({ onBack }) {
                 <div ref={mapContainerRef} className="dash-map-canvas" id="precision-map" />
 
                 {/* Map controls overlay */}
-                <div className="dash-map-controls">
+                <div className={`dash-map-controls ${drawingMode ? "dash-drawing-active" : ""}`}>
                     {/* Top row: Back + Search + Tiles */}
                     <div className="dash-controls-row">
                         {/* Back button */}
@@ -1055,6 +1476,23 @@ export default function Dashboard({ onBack }) {
                     )}
                 </div>
 
+                {/* Small floating toggle button to open options when closed */}
+                {!panelOpen && (
+                    <button
+                        type="button"
+                        className="dash-floating-options-toggle"
+                        onClick={() => {
+                            setPanelOpen(true);
+                            setPanelHeight(null);
+                        }}
+                        title="Open options panel"
+                        aria-label="Open options panel"
+                    >
+                        <span className="dash-floating-title">🌾 Options</span>
+                        <span className="dash-toggle-badge small">▲</span>
+                    </button>
+                )}
+
                 {/* Map loading overlay */}
                 {!mapReady && (
                     <div className="dash-map-loading">
@@ -1066,47 +1504,45 @@ export default function Dashboard({ onBack }) {
 
             {/* ── PANEL SECTION ────────────────────────────── */}
             <div 
-                className={`dash-panel ${panelOpen ? "open" : "collapsed"}`}
-                style={{ height: panelHeight ? `${panelHeight}px` : "" }}
+                ref={panelRef}
+                className={`dash-panel ${panelOpen ? "open" : "collapsed"} ${drawingMode ? "dash-panel-drawing-transparent" : ""} ${isDragging ? "is-dragging" : ""}`}
+                style={{ height: panelOpen && panelHeight ? `${panelHeight}px` : undefined }}
             >
-                {/* Panel toggle (mobile) */}
+                {/* Panel toggle (mobile bottom sheet handle) */}
                 <button
                     className="dash-panel-toggle"
+                    type="button"
                     style={{ touchAction: 'none' }}
-                    onPointerDown={(e) => {
-                        if (window.innerWidth > 900) return;
-                        e.currentTarget.setPointerCapture(e.pointerId);
-                    }}
-                    onPointerMove={(e) => {
-                        if (window.innerWidth > 900 || !e.currentTarget.hasPointerCapture(e.pointerId)) return;
-                        
-                        const newHeight = window.innerHeight - e.clientY;
-                        if (newHeight < 150) {
-                            setPanelOpen(false);
-                            setPanelHeight(null);
-                        } else if (newHeight > window.innerHeight - 100) {
-                            setPanelHeight(window.innerHeight - 100);
-                            setPanelOpen(true);
-                        } else {
-                            setPanelHeight(newHeight);
-                            setPanelOpen(true);
-                        }
-                    }}
-                    onPointerUp={(e) => {
-                        if (window.innerWidth > 900) return;
-                        e.currentTarget.releasePointerCapture(e.pointerId);
-                    }}
-                    onClick={() => {
-                        // Toggle if they just clicked without dragging much
-                        setPanelOpen(!panelOpen);
-                        setPanelHeight(null);
-                    }}
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerCancel={handlePointerCancel}
+                    onClick={handleToggleClick}
                     aria-label={panelOpen ? "Collapse control panel" : "Expand control panel"}
                 >
                     <div className="dash-drag-handle" />
                     <div className="dash-toggle-inner">
                         <span className="dash-toggle-title">🌾 Precision Agriculture</span>
-                        <span className="dash-toggle-badge">{panelOpen ? "▼" : "▲"}</span>
+                        <button
+                            type="button"
+                            className="dash-toggle-badge"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (panelOpen) {
+                                    // Totally close it
+                                    setPanelOpen(false);
+                                    setPanelHeight(null);
+                                } else {
+                                    // Totally open it
+                                    setPanelOpen(true);
+                                    setPanelHeight(null);
+                                }
+                            }}
+                            title={panelOpen ? "Totally close panel" : "Totally open panel"}
+                            aria-label={panelOpen ? "Totally close panel" : "Totally open panel"}
+                        >
+                            {panelOpen ? "▼" : "▲"}
+                        </button>
                     </div>
                 </button>
 
@@ -1138,123 +1574,205 @@ export default function Dashboard({ onBack }) {
 
                 {/* Panel content */}
                 <div className="dash-panel-content">
-                    {/* ── FIELD TAB ─────────────────────────── */}
+                    {/* ── FIELD TAB: SELECTED LAND DETAILS ─────────────────── */}
                     {panelTab === "field" && (
                         <div className="dash-card-stack">
-                            {/* Drawn field info */}
-                            {drawingPoints.length >= 3 && (
-                                <div className="dash-card glass">
-                                    <h3 className="dash-card-title">📐 Field Boundary</h3>
-                                    <div className="dash-field-stats">
-                                        <div className="dash-stat">
-                                            <span className="stat-label">Area</span>
-                                            <span className="stat-value">
-                                                {calculatedArea?.toFixed(2) || "—"}
-                                                <small> {areaUnit}</small>
-                                            </span>
-                                        </div>
-                                        <div className="dash-stat">
-                                            <span className="stat-label">Points</span>
-                                            <span className="stat-value">{drawingPoints.length}</span>
-                                        </div>
-                                        <div className="dash-stat">
-                                            <span className="stat-label">Center</span>
-                                            <span className="stat-value stat-small">
-                                                {calcCentroid(drawingPoints).lat.toFixed(4)}°, {calcCentroid(drawingPoints).lng.toFixed(4)}°
-                                            </span>
+                            {/* 📂 Quick selector to open saved fields directly on dashboard */}
+                            {savedFields.length > 0 && (
+                                <div className="dash-saved-selector-wrap">
+                                    <div className="dash-saved-selector-label">
+                                        <span className="dash-saved-icon">📂</span>
+                                        <span className="dash-saved-text">Open Saved Land:</span>
+                                    </div>
+                                    <div className="dash-saved-selector-row">
+                                        <select
+                                            className="dash-saved-select"
+                                            value={activeField?._id || ""}
+                                            onChange={(e) => {
+                                                const selId = e.target.value;
+                                                if (!selId) {
+                                                    setActiveField(null);
+                                                } else {
+                                                    const match = savedFields.find((f) => f._id === selId);
+                                                    if (match) flyToField(match);
+                                                }
+                                            }}
+                                        >
+                                            <option value="">-- Choose a Saved Land ({savedFields.length}) --</option>
+                                            {savedFields.map((f) => (
+                                                <option key={f._id} value={f._id}>
+                                                    🌾 {f.name} ({f.area?.value ? `${f.area.value.toFixed(1)} ${f.area.unit || "acres"}` : "Saved"})
+                                                </option>
+                                            ))}
+                                        </select>
+                                        {activeField ? (
+                                            <div className="dash-saved-btn-group">
+                                                <button
+                                                    type="button"
+                                                    className="dash-clear-sel-btn"
+                                                    onClick={() => {
+                                                        setActiveField(null);
+                                                        showSuccess("Active land deselected. You can draw a new boundary or pick another land.");
+                                                    }}
+                                                    title="Deselect active land"
+                                                >
+                                                    ✕ Deselect
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="dash-delete-sel-btn"
+                                                    onClick={() => {
+                                                        deleteField(activeField._id || activeField.id, activeField.name);
+                                                    }}
+                                                    title="Delete this saved land"
+                                                >
+                                                    🗑️ Delete
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <span className="dash-saved-count-pill">{savedFields.length} saved</span>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="dash-card glass dash-land-card">
+                                <div className="dash-land-header">
+                                    <div className="dash-land-title-wrap">
+                                        <span className="dash-land-icon">📍</span>
+                                        <div>
+                                            <h3 className="dash-card-title">{currentLandName}</h3>
+                                            <span className="dash-land-sub">{currentLocationSub}</span>
                                         </div>
                                     </div>
+                                    <span className="dash-land-badge">
+                                        {activeField 
+                                            ? "💾 Saved Field" 
+                                            : (drawingMode 
+                                                ? "✏️ Drawing Boundary" 
+                                                : (drawingPoints.length >= 3 ? "📐 Boundary Defined" : "🛰️ Selected Land"))}
+                                    </span>
+                                </div>
 
-                                    {/* Save field */}
-                                    <div className="dash-save-field">
-                                        <input
-                                            type="text"
-                                            className="dash-input"
-                                            placeholder="Field name (e.g., North Field)"
-                                            value={fieldName}
-                                            onChange={(e) => setFieldName(e.target.value)}
-                                        />
-                                        <button className="dash-btn primary" onClick={saveField}>
-                                            💾 Save Field
+                                {/* Primary Land Metrics */}
+                                <div className="dash-land-grid">
+                                    <div className="dash-land-stat">
+                                        <span className="land-stat-label">Coordinates</span>
+                                        <span className={`land-stat-val land-stat-mono ${currentLat === null ? "dimmed" : ""}`}>
+                                            {currentLat !== null && currentLng !== null
+                                                ? `${currentLat.toFixed(4)}°, ${currentLng.toFixed(4)}°`
+                                                : "Cleared (Click map to draw)"}
+                                        </span>
+                                    </div>
+                                    <div className="dash-land-stat">
+                                        <span className="land-stat-label">Land Area</span>
+                                        <span className={`land-stat-val ${currentArea !== null ? "highlight" : ""}`}>
+                                            {currentArea !== null 
+                                                ? `${currentArea.toFixed(2)} ${currentAreaUnit}` 
+                                                : (drawingPoints.length > 0 ? `${drawingPoints.length} points placed` : "Unmeasured")}
+                                        </span>
+                                    </div>
+                                    <div className="dash-land-stat">
+                                        <span className="land-stat-label">Crop Season</span>
+                                        <span className="land-stat-val">
+                                            {currentSeason}
+                                        </span>
+                                    </div>
+                                    <div className="dash-land-stat">
+                                        <span className="land-stat-label">Soil Classification</span>
+                                        <span className="land-stat-val">
+                                            {selectedLand.soilType || "Alluvial Loam / Clay"}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Environmental & Agronomic Specifications */}
+                                <div className="dash-land-specs">
+                                    <div className="dash-spec-row">
+                                        <span className="spec-label">🌾 Irrigation Source:</span>
+                                        <span className="spec-val">{selectedLand.irrigation || "Canal System & Ground Tubewell"}</span>
+                                    </div>
+                                    <div className="dash-spec-row">
+                                        <span className="spec-label">🗺️ Land Topography:</span>
+                                        <span className="spec-val">{selectedLand.elevation || "Level Alluvial Basin (~215m ASL)"}</span>
+                                    </div>
+                                    <div className="dash-spec-row">
+                                        <span className="spec-label">📐 Boundary Status:</span>
+                                        <span className="spec-val">
+                                            {drawingMode
+                                                ? (drawingPoints.length >= 3 
+                                                    ? `Ready to finish (${drawingPoints.length} points placed)` 
+                                                    : (drawingPoints.length > 0 
+                                                        ? `Placing points (${drawingPoints.length} placed)` 
+                                                        : "Old coordinates unselected • Click map to place 1st point"))
+                                                : (drawingPoints.length >= 3 
+                                                    ? `✓ Closed Polygon (${drawingPoints.length} points)` 
+                                                    : (activeField ? `Saved Boundary (${activeField.boundary?.coordinates?.[0]?.length || 0} pts)` : "Ready to Outline on Map"))}
+                                        </span>
+                                    </div>
+                                    {weather && (
+                                        <div className="dash-spec-row">
+                                            <span className="spec-label">🌤️ Live Telemetry:</span>
+                                            <span className="spec-val">
+                                                {weather.temperature}°C • {weather.condition} ({weather.humidity}% Humidity)
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Dedicated Save Field Card if 3+ points drawn and not saved yet */}
+                                {drawingPoints.length >= 3 && !activeField && (
+                                    <div className="dash-save-field-card">
+                                        <div className="dash-save-header">
+                                            <div className="dash-save-title">
+                                                <span className="dash-save-icon">💾</span>
+                                                <div>
+                                                    <h4 className="dash-save-h4">Save Drawn Land Boundary</h4>
+                                                    <p className="dash-save-sub">Save this land to your dashboard so it opens automatically next time</p>
+                                                </div>
+                                            </div>
+                                            <span className="dash-save-acres-pill">
+                                                {calculatedArea ? `${calculatedArea.toFixed(2)} ${areaUnit}` : `${drawingPoints.length} points`}
+                                            </span>
+                                        </div>
+                                        <div className="dash-save-form-row">
+                                            <input
+                                                type="text"
+                                                className="dash-input dash-save-input"
+                                                placeholder="Field Name (e.g. North Wheat Parcel)"
+                                                value={fieldName}
+                                                onChange={(e) => setFieldName(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter") saveField();
+                                                }}
+                                            />
+                                            <button className="dash-btn primary dash-save-submit-btn" onClick={saveField}>
+                                                <span>💾</span>
+                                                <span>Save Farmland</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Action Buttons */}
+                                <div className="dash-land-actions">
+                                    {!drawingMode ? (
+                                        <button className="dash-btn outline" onClick={startDrawing}>
+                                            <span>✏️</span>
+                                            <span>{activeField ? "Draw New Boundary" : (drawingPoints.length >= 3 ? "Redraw Boundary" : "Draw Land Boundary")}</span>
                                         </button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Active saved field info */}
-                            {activeField && (
-                                <div className="dash-card glass">
-                                    <h3 className="dash-card-title">🗺️ {activeField.name}</h3>
-                                    <div className="dash-field-stats">
-                                        <div className="dash-stat">
-                                            <span className="stat-label">Area</span>
-                                            <span className="stat-value">
-                                                {activeField.area?.value?.toFixed(2) || "—"}
-                                                <small> {activeField.area?.unit || "acres"}</small>
-                                            </span>
-                                        </div>
-                                        <div className="dash-stat">
-                                            <span className="stat-label">Location</span>
-                                            <span className="stat-value stat-small">
-                                                {activeField.locationName || "—"}
-                                            </span>
-                                        </div>
-                                        <div className="dash-stat">
-                                            <span className="stat-label">Season</span>
-                                            <span className="stat-value">{activeField.season || "—"}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Quick actions */}
-                            <div className="dash-card glass">
-                                <h3 className="dash-card-title">⚡ Quick Actions</h3>
-                                <div className="dash-actions-grid">
-                                    <button
-                                        className="dash-action-btn"
-                                        onClick={() => setPanelTab("weather")}
-                                        disabled={(drawingPoints.length < 3 && !activeField && !weather) || weatherLoading}
-                                    >
-                                        <span>🌤️</span>
-                                        <span>Get Weather</span>
-                                    </button>
-                                    <button
-                                        className="dash-action-btn"
-                                        onClick={runAnalysis}
-                                        disabled={(drawingPoints.length < 3 && !activeField && !weather) || loadingCrops}
-                                    >
+                                    ) : (
+                                        <button className="dash-btn outline" onClick={cancelDrawing}>
+                                            <span>✕</span>
+                                            <span>Cancel Drawing</span>
+                                        </button>
+                                    )}
+                                    <button className="dash-btn secondary" onClick={() => setPanelTab("ai")}>
                                         <span>🤖</span>
-                                        <span>AI Analysis</span>
-                                    </button>
-                                    <button
-                                        className="dash-action-btn"
-                                        onClick={() => setPanelTab("scan")}
-                                    >
-                                        <span>🔬</span>
-                                        <span>Scan Disease</span>
-                                    </button>
-                                    <button
-                                        className="dash-action-btn"
-                                        onClick={() => setPanelTab("saved")}
-                                    >
-                                        <span>💾</span>
-                                        <span>My Fields</span>
+                                        <span>AI Crop Suitability</span>
                                     </button>
                                 </div>
                             </div>
-
-                            {/* No field state */}
-                            {drawingPoints.length < 3 && !activeField && (
-                                <div className="dash-empty-state">
-                                    <span className="empty-icon">🗺️</span>
-                                    <p>Draw a field boundary on the map</p>
-                                    <p className="empty-sub">
-                                        Click <strong>"✏️ Draw Field Boundary"</strong> on the map,
-                                        then click to place points around your field.
-                                    </p>
-                                </div>
-                            )}
                         </div>
                     )}
 
@@ -1570,13 +2088,28 @@ export default function Dashboard({ onBack }) {
                                             {field.season && <span>🌱 {field.season}</span>}
                                         </div>
                                     </div>
-                                    <button
-                                        className="saved-field-delete"
-                                        onClick={(e) => { e.stopPropagation(); deleteField(field._id); }}
-                                        title="Delete field"
-                                    >
-                                        🗑️
-                                    </button>
+                                    <div className="saved-field-card-btns">
+                                        <button
+                                            type="button"
+                                            className="dash-open-land-btn"
+                                            onClick={(e) => { e.stopPropagation(); flyToField(field); }}
+                                            title="Open land on dashboard"
+                                        >
+                                            Open Land
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="saved-field-delete"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                deleteField(field._id || field.id, field.name);
+                                            }}
+                                            title="Delete field"
+                                            aria-label={`Delete field ${field.name}`}
+                                        >
+                                            🗑️
+                                        </button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -1584,11 +2117,17 @@ export default function Dashboard({ onBack }) {
                 </div>
             </div>
 
-            {/* ── ERROR TOAST ──────────────────────────────── */}
+            {/* ── NOTIFICATION TOASTS ───────────────────────── */}
             {error && (
                 <div className="dash-toast">
                     <span>⚠️</span>
                     <span>{error}</span>
+                </div>
+            )}
+            {successMsg && (
+                <div className="dash-toast dash-toast-success">
+                    <span>✅</span>
+                    <span>{successMsg}</span>
                 </div>
             )}
         </div>

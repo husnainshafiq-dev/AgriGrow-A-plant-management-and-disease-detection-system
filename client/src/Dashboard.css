@@ -35,10 +35,17 @@
 }
 
 /* ── Dashboard Layout ─────────────────────────────────────── */
+body:has(.dashboard),
+.landing-page:has(.dashboard) {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden !important;
+}
+
 .dashboard {
     display: flex;
-    height: 100vh;
-    width: 100vw;
+    height: calc(100vh - 74px);
+    width: 100%;
     overflow: hidden;
     background: var(--dash-bg);
     font-family: var(--font-body, 'Inter', sans-serif);
@@ -572,6 +579,31 @@
     box-shadow: 0 4px 14px rgba(239, 68, 68, 0.5);
 }
 
+.dash-options-toggle-btn {
+    background: #1e293b;
+    border: 1.5px solid rgba(16, 185, 129, 0.45);
+    color: #34d399;
+    font-weight: 600;
+    border-radius: 10px;
+    padding: 0 14px;
+    height: 38px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+    transition: var(--dash-transition);
+}
+
+.dash-options-toggle-btn:hover {
+    background: rgba(16, 185, 129, 0.18);
+    border-color: #10b981;
+    color: #ffffff;
+}
+
+.dash-options-toggle-btn.active {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(5, 150, 105, 0.35) 100%);
+    border-color: #34d399;
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.35);
+}
+
 /* Map loading overlay */
 .dash-map-loading {
     position: absolute;
@@ -612,6 +644,46 @@
     border-left: 1px solid var(--dash-glass-border);
     overflow: hidden;
     transition: var(--dash-transition);
+}
+
+.dash-panel.collapsed {
+    width: 0;
+    min-width: 0;
+    border-left: none;
+    overflow: hidden;
+}
+
+/* Transparent options panel when drawing boundary */
+.dash-panel.dash-panel-drawing-transparent {
+    background: rgba(10, 15, 26, 0.22) !important;
+    backdrop-filter: blur(3px) !important;
+    -webkit-backdrop-filter: blur(3px) !important;
+    border-color: rgba(16, 185, 129, 0.22) !important;
+    opacity: 0.38;
+    pointer-events: none; /* Clicks go directly through to the Leaflet map */
+    transition: opacity 0.25s ease, background 0.25s ease;
+}
+
+.dash-panel.dash-panel-drawing-transparent .dash-panel-toggle,
+.dash-panel.dash-panel-drawing-transparent .dash-toggle-badge,
+.dash-panel.dash-panel-drawing-transparent .dash-tabs,
+.dash-panel.dash-panel-drawing-transparent button {
+    pointer-events: auto;
+}
+
+.dash-panel.dash-panel-drawing-transparent:hover,
+.dash-panel.dash-panel-drawing-transparent:focus-within {
+    opacity: 0.94;
+    background: rgba(10, 15, 26, 0.88) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    pointer-events: auto;
+}
+
+.dash-panel.dash-panel-drawing-transparent .dash-card {
+    background: rgba(15, 23, 42, 0.25) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    box-shadow: none !important;
 }
 
 .dash-panel-toggle {
@@ -752,6 +824,355 @@
     font-size: 13px;
     color: var(--dash-text-muted);
     line-height: 1.5;
+}
+
+/* ── Saved Land Quick Selector on Dashboard ──────────────── */
+.dash-saved-selector-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(15, 23, 42, 0.8) 100%);
+    border: 1.5px solid rgba(16, 185, 129, 0.35);
+    border-radius: var(--dash-radius);
+    padding: 10px 12px;
+    margin-bottom: 2px;
+}
+
+.dash-saved-selector-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #34d399;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.dash-saved-selector-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.dash-saved-select {
+    flex: 1;
+    min-width: 0;
+    height: 36px;
+    padding: 0 10px;
+    background: rgba(11, 19, 41, 0.9);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 8px;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    outline: none;
+    transition: var(--dash-transition);
+}
+
+.dash-saved-select:focus {
+    border-color: #10b981;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+}
+
+.dash-saved-btn-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.dash-clear-sel-btn {
+    height: 36px;
+    padding: 0 10px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 8px;
+    color: #e2e8f0;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: var(--dash-transition);
+}
+
+.dash-clear-sel-btn:hover {
+    background: rgba(255, 255, 255, 0.16);
+    color: #ffffff;
+}
+
+.dash-delete-sel-btn {
+    height: 36px;
+    padding: 0 10px;
+    background: rgba(239, 68, 68, 0.18);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    border-radius: 8px;
+    color: #fca5a5;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: var(--dash-transition);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.dash-delete-sel-btn:hover {
+    background: rgba(239, 68, 68, 0.35);
+    color: #ffffff;
+    border-color: rgba(239, 68, 68, 0.7);
+}
+
+.dash-delete-sel-btn:active {
+    transform: scale(0.96);
+}
+
+.dash-saved-count-pill {
+    font-size: 11px;
+    font-weight: 600;
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.06);
+    padding: 4px 8px;
+    border-radius: 6px;
+    white-space: nowrap;
+}
+
+/* ── Selected Land Details Card ────────────────────────── */
+.dash-land-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: linear-gradient(145deg, rgba(16, 185, 129, 0.08) 0%, rgba(15, 23, 42, 0.75) 100%) !important;
+    border: 1.5px solid rgba(16, 185, 129, 0.3) !important;
+}
+
+.dash-land-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.dash-land-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.dash-land-icon {
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.dash-land-sub {
+    font-size: 11.5px;
+    color: var(--dash-text-muted);
+    display: block;
+    margin-top: 1px;
+}
+
+.dash-land-badge {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #34d399;
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+    padding: 3px 9px;
+    border-radius: 12px;
+    white-space: nowrap;
+}
+
+.dash-land-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.dash-land-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    padding: 8px 10px;
+}
+
+.land-stat-label {
+    font-size: 10px;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-weight: 600;
+}
+
+.land-stat-val {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.land-stat-val.highlight {
+    color: #34d399;
+}
+
+.land-stat-mono {
+    font-family: var(--font-mono, monospace);
+    font-size: 11.5px;
+    color: #38bdf8;
+}
+
+.land-stat-val.dimmed {
+    color: #94a3b8 !important;
+    font-weight: 500 !important;
+    font-style: italic;
+    font-size: 11px !important;
+}
+
+.dash-land-specs {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 8px;
+    padding: 8px 10px;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.dash-spec-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11.5px;
+}
+
+.spec-label {
+    color: #94a3b8;
+    font-weight: 500;
+}
+
+.spec-val {
+    color: #e2e8f0;
+    font-weight: 600;
+    text-align: right;
+}
+
+.dash-land-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.dash-land-actions .dash-btn {
+    flex: 1;
+    height: 36px;
+    font-size: 12px;
+    font-weight: 600;
+    justify-content: center;
+    border-radius: 8px;
+}
+
+/* ── Dedicated Save Farmland Boundary Card ───────────────── */
+.dash-save-field-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(6, 78, 59, 0.3) 100%);
+    border: 1.5px solid rgba(16, 185, 129, 0.5);
+    border-radius: var(--dash-radius);
+    padding: 12px 14px;
+    margin-top: 4px;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.dash-save-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.dash-save-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dash-save-icon {
+    font-size: 20px;
+}
+
+.dash-save-h4 {
+    margin: 0;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.dash-save-sub {
+    margin: 2px 0 0;
+    font-size: 11px;
+    color: #a7f3d0;
+    line-height: 1.3;
+}
+
+.dash-save-acres-pill {
+    font-size: 11px;
+    font-weight: 700;
+    color: #10b981;
+    background: rgba(255, 255, 255, 0.95);
+    padding: 3px 8px;
+    border-radius: 12px;
+    white-space: nowrap;
+}
+
+.dash-save-form-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.dash-save-input {
+    flex: 1;
+    min-width: 0;
+    height: 38px;
+    background: rgba(11, 19, 41, 0.92) !important;
+    border: 1.5px solid rgba(52, 211, 153, 0.45) !important;
+    border-radius: 8px;
+    color: #ffffff !important;
+    padding: 0 12px;
+    font-size: 12.5px;
+}
+
+.dash-save-input:focus {
+    border-color: #10b981 !important;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3) !important;
+}
+
+.dash-save-submit-btn {
+    height: 38px !important;
+    padding: 0 14px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    white-space: nowrap;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+}
+
+/* Inspection marker */
+.dash-inspect-pin {
+    background: transparent;
+    border: none;
+}
+
+.inspect-pin-marker {
+    font-size: 24px;
+    line-height: 1;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.7));
 }
 
 /* ── Field Stats ──────────────────────────────────────────── */
@@ -1379,19 +1800,56 @@
 }
 
 .saved-field-delete {
-    background: transparent;
-    border: none;
-    font-size: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(239, 68, 68, 0.18) !important;
+    border: 1px solid rgba(239, 68, 68, 0.4) !important;
+    border-radius: 6px;
+    font-size: 15px;
     cursor: pointer;
-    opacity: 0.4;
+    opacity: 1 !important;
     transition: var(--dash-transition);
     flex-shrink: 0;
-    padding: 4px;
+    padding: 5px 9px;
+    color: #fca5a5;
+    height: 30px;
+    line-height: 1;
 }
 
 .saved-field-delete:hover {
-    opacity: 1;
-    transform: scale(1.2);
+    background: rgba(239, 68, 68, 0.4) !important;
+    border-color: rgba(239, 68, 68, 0.7) !important;
+    color: #ffffff;
+    transform: scale(1.06);
+}
+
+.saved-field-delete:active {
+    transform: scale(0.96);
+}
+
+.saved-field-card-btns {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.dash-open-land-btn {
+    background: rgba(16, 185, 129, 0.2);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    color: #34d399;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--dash-transition);
+}
+
+.dash-open-land-btn:hover {
+    background: #10b981;
+    color: #ffffff;
 }
 
 /* ── TOAST ────────────────────────────────────────────────── */
@@ -1414,6 +1872,12 @@
     z-index: 10000;
     box-shadow: 0 8px 32px rgba(239, 68, 68, 0.3);
     animation: toast-in 0.3s ease-out;
+}
+
+.dash-toast.dash-toast-success {
+    background: rgba(16, 185, 129, 0.95);
+    box-shadow: 0 8px 32px rgba(16, 185, 129, 0.35);
+    border: 1px solid rgba(52, 211, 153, 0.5);
 }
 
 @keyframes toast-in {
@@ -1499,27 +1963,86 @@
 /* ── RESPONSIVE ───────────────────────────────────────────── */
 @media (max-width: 900px) {
     .dashboard {
+        position: relative;
+        height: calc(100dvh - 56px);
+        height: calc(100vh - 56px);
+        width: 100%;
+        overflow: hidden;
+        display: flex;
         flex-direction: column;
     }
 
     .dash-map-section {
-        height: 36vh;
-        min-height: 200px;
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+    }
+
+    .dash-map-canvas {
+        width: 100%;
+        height: 100%;
     }
 
     .dash-panel {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
         width: 100%;
         min-width: 100%;
+        max-width: 100%;
         height: auto;
-        flex: 1;
+        max-height: 82vh;
+        z-index: 1000;
         border-left: none;
-        border-top: 1px solid var(--dash-glass-border);
+        border-top: 1.5px solid rgba(16, 185, 129, 0.35);
+        border-top-left-radius: 20px;
+        border-top-right-radius: 20px;
+        background: rgba(10, 15, 26, 0.96);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.75);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        transition: height 0.32s cubic-bezier(0.16, 1, 0.3, 1), transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+        will-change: height, transform;
+    }
+
+    .dash-panel.is-dragging {
+        transition: none !important;
+    }
+
+    .dash-panel.open {
+        max-height: 82vh;
+    }
+
+    .dash-panel.open:not([style*="height"]) {
+        height: auto !important;
+    }
+
+    .dash-panel.dash-panel-drawing-transparent {
+        background: rgba(10, 15, 26, 0.22) !important;
+        backdrop-filter: blur(3px) !important;
+        -webkit-backdrop-filter: blur(3px) !important;
+        border-top: 1.5px solid rgba(16, 185, 129, 0.25) !important;
+        box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.35) !important;
+        opacity: 0.38;
+    }
+
+    .dash-panel.collapsed {
+        height: 52px !important;
+        width: 100% !important;
+        min-width: 100% !important;
+        overflow: hidden;
     }
 
     .dash-panel.collapsed .dash-panel-content,
     .dash-panel.collapsed .dash-tabs,
     .dash-panel.collapsed .dash-panel-header {
-        display: none;
+        display: none !important;
     }
 
     /* Streamlined mobile toggle handle */
@@ -1527,25 +2050,39 @@
         display: flex;
         align-items: center;
         width: 100%;
-        padding: 12px 14px 8px;
-        background: var(--dash-surface);
+        min-height: 52px;
+        padding: 10px 16px 8px;
+        background: rgba(15, 23, 42, 0.95);
         border: none;
         border-bottom: 1px solid var(--dash-glass-border);
-        cursor: pointer;
+        cursor: grab;
         position: relative;
         touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+    }
+
+    .dash-panel-toggle:active {
+        cursor: grabbing;
     }
 
     .dash-drag-handle {
-        width: 36px;
-        height: 4px;
-        background: rgba(255, 255, 255, 0.25);
-        border-radius: 2px;
+        width: 44px;
+        height: 5px;
+        background: rgba(255, 255, 255, 0.45);
+        border-radius: 3px;
         position: absolute;
-        top: 4px;
+        top: 6px;
         left: 50%;
         transform: translateX(-50%);
         pointer-events: none;
+        transition: background 0.2s, width 0.2s;
+    }
+
+    .dash-panel-toggle:hover .dash-drag-handle,
+    .dash-panel.is-dragging .dash-drag-handle {
+        background: var(--dash-accent-light);
+        width: 52px;
     }
 
     .dash-toggle-inner {
@@ -1553,12 +2090,13 @@
         align-items: center;
         justify-content: space-between;
         width: 100%;
+        margin-top: 4px;
     }
 
     .dash-toggle-title {
         font-family: var(--font-heading, 'Outfit', sans-serif);
         font-weight: 700;
-        font-size: 13.5px;
+        font-size: 14px;
         background: linear-gradient(135deg, #10B981, #34d399, #6ee7b7);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
@@ -1569,13 +2107,74 @@
     }
 
     .dash-toggle-badge {
-        font-size: 11px;
-        color: var(--dash-accent-light);
-        background: rgba(16, 185, 129, 0.15);
-        border: 1px solid rgba(16, 185, 129, 0.25);
-        padding: 2px 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 34px;
+        height: 24px;
+        padding: 0 10px;
+        background: rgba(16, 185, 129, 0.18);
+        border: 1.5px solid rgba(16, 185, 129, 0.5);
         border-radius: 12px;
-        font-weight: 600;
+        color: #10b981;
+        font-size: 11px;
+        font-weight: 800;
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        user-select: none;
+        outline: none;
+        box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+    }
+
+    .dash-toggle-badge:hover {
+        background: rgba(16, 185, 129, 0.35);
+        border-color: #34d399;
+        color: #ffffff;
+        box-shadow: 0 0 14px rgba(16, 185, 129, 0.5);
+        transform: scale(1.08);
+    }
+
+    .dash-toggle-badge:active {
+        transform: scale(0.92);
+    }
+
+    /* Small floating toggle button to open options when closed */
+    .dash-floating-options-toggle {
+        position: absolute;
+        bottom: 64px;
+        right: 14px;
+        z-index: 950;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 14px 6px 12px;
+        background: rgba(10, 15, 26, 0.94);
+        border: 1.5px solid rgba(16, 185, 129, 0.5);
+        border-radius: 20px;
+        color: #ffffff;
+        font-size: 13px;
+        font-weight: 700;
+        font-family: var(--font-heading, 'Outfit', sans-serif);
+        cursor: pointer;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7), 0 0 14px rgba(16, 185, 129, 0.35);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .dash-floating-options-toggle:hover {
+        background: rgba(15, 23, 42, 0.98);
+        border-color: #34d399;
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.8), 0 0 18px rgba(16, 185, 129, 0.55);
+        transform: translateY(-2px);
+    }
+
+    .dash-floating-options-toggle:active {
+        transform: scale(0.96);
+    }
+
+    .dash-floating-options-toggle .dash-toggle-badge {
+        pointer-events: none;
     }
 
     /* Redundant panel header is hidden on mobile to save vertical space */
@@ -1614,8 +2213,11 @@
     }
 
     .dash-panel-content {
-        padding: 8px 10px;
-        max-height: calc(100vh - 42vh);
+        padding: 10px 12px 24px;
+        flex: 1;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        max-height: none;
     }
 
     .dash-card {
@@ -1676,23 +2278,40 @@
         gap: 6px;
     }
 
+    /* While drawing boundary on mobile, hide the search bar to maximize land visibility */
+    .dash-drawing-active .dash-search-wrap {
+        display: none !important;
+    }
+
     .dash-controls-row {
         gap: 6px;
     }
 
     .dash-ctrl-btn {
-        padding: 0 12px;
-        height: 38px;
-        font-size: 12px;
+        padding: 0 10px;
+        height: 34px;
+        font-size: 11.5px;
+    }
+
+    .dash-draw-btn {
+        height: 32px !important;
+        padding: 0 10px !important;
+        font-size: 11.5px !important;
+        gap: 5px !important;
+        border-radius: 8px !important;
+    }
+
+    .dash-draw-icon {
+        font-size: 13px !important;
     }
 
     .dash-search-bar {
-        height: 38px;
-        padding: 0 12px;
+        height: 34px;
+        padding: 0 10px;
     }
 
     .dash-tile-toggle {
-        height: 38px;
+        height: 34px;
     }
 
     .dash-tile-label {
@@ -1700,13 +2319,66 @@
     }
 
     .dash-tile-btn {
-        padding: 0 9px;
+        padding: 0 8px;
     }
 
     .dash-draw-controls {
-        min-width: 240px;
-        padding: 10px 14px;
-        gap: 8px;
+        width: calc(100% - 16px);
+        max-width: 100%;
+        min-width: 0;
+        padding: 6px 10px !important;
+        gap: 5px !important;
+        border-radius: 10px !important;
+        background: rgba(11, 19, 41, 0.95) !important;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7) !important;
+    }
+
+    .dash-draw-status {
+        font-size: 11px !important;
+        padding: 3px 8px !important;
+        gap: 6px !important;
+        border-radius: 6px !important;
+    }
+
+    .dash-draw-dot {
+        width: 6px !important;
+        height: 6px !important;
+    }
+
+    .dash-draw-stats {
+        gap: 6px !important;
+    }
+
+    .dash-stat-badge {
+        padding: 3px 8px !important;
+        font-size: 11px !important;
+        border-radius: 6px !important;
+    }
+
+    .dash-unit-select {
+        padding: 2px 5px !important;
+        font-size: 11px !important;
+    }
+
+    .dash-draw-actions {
+        display: flex;
+        gap: 5px !important;
+        width: 100%;
+    }
+
+    .dash-draw-actions .dash-ctrl-btn {
+        flex: 1;
+        justify-content: center;
+        padding: 0 6px !important;
+        height: 28px !important;
+        font-size: 11px !important;
+        border-radius: 7px !important;
+    }
+
+    /* Ensure Leaflet controls sit above the bottom docked handle */
+    .dash-map-section .leaflet-bottom {
+        bottom: 60px !important;
+        transition: bottom 0.32s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .dash-field-stats {

@@ -71,14 +71,17 @@ if (import.meta.env.DEV && "serviceWorker" in navigator) {
     }
 }
 
-createRoot(document.getElementById("root")).render(
-    <BrowserRouter>
-        <AuthProvider>
-            <LanguageProvider>
-                <BookmarkProvider>
-                    <App />
-                </BookmarkProvider>
-            </LanguageProvider>
-        </AuthProvider>
-    </BrowserRouter>
-);
+const rootEl = document.getElementById("root");
+if (rootEl) {
+    createRoot(rootEl).render(
+        <BrowserRouter>
+            <AuthProvider>
+                <LanguageProvider>
+                    <BookmarkProvider>
+                        <App />
+                    </BookmarkProvider>
+                </LanguageProvider>
+            </AuthProvider>
+        </BrowserRouter>
+    );
+}

@@ -414,6 +414,7 @@ export default function MarketPrices() {
         setScrapingLive(true);
         setActionFeedback(null);
         try {
+            let syncedSuccess = false;
             if (isAuthenticated) {
                 const res = await fetch("/api/market/scrape-now", {
                     method: "POST",
@@ -425,9 +426,10 @@ export default function MarketPrices() {
                 const data = await res.json().catch(() => ({}));
                 if (res.ok) {
                     const uniqueCount = data.data?.unique || 0;
+                    syncedSuccess = true;
                     setActionFeedback({
                         type: "success",
-                        text: `Live sync complete! Synced ${uniqueCount > 0 ? `${uniqueCount} commodity rates` : "latest mandi rates"}.`
+                        text: `AMIS live sync complete! Scraped & verified ${uniqueCount} commodity rates.`
                     });
                 }
             }
@@ -437,7 +439,7 @@ export default function MarketPrices() {
                 isAdmin ? fetchModerationQueue() : Promise.resolve()
             ]);
             setLastRefreshed(new Date());
-            if (!actionFeedback) {
+            if (!syncedSuccess) {
                 setActionFeedback({
                     type: "success",
                     text: "Market prices updated! Checked latest mandi records."
@@ -501,6 +503,34 @@ export default function MarketPrices() {
     const hasMore = filteredPrices.length > visibleCount;
     const isExpanded = visibleCount > INITIAL_VISIBLE_COUNT;
 
+    if (!isAuthenticated) {
+        return (
+            <div className="market-page">
+                <div className="bg-blobs">
+                    <div className="blob blob-1"></div>
+                    <div className="blob blob-3"></div>
+                </div>
+                <div className="market-container auth-gate-container">
+                    <div className="auth-gate-card glass-panel">
+                        <div className="auth-gate-icon">💰</div>
+                        <h2>{t("nav.market")} — Mandi Tracker</h2>
+                        <p className="auth-gate-desc">
+                            Live mandi rates, crop price history graphs, commodity trends, and farmer rate submissions are available for registered AgriGrow members. Please log in to view current market prices.
+                        </p>
+                        <div className="auth-gate-actions">
+                            <Link to="/login?redirect=/market" className="btn-primary auth-gate-btn">
+                                🔐 Log In to View Market Prices
+                            </Link>
+                            <Link to="/register?redirect=/market" className="btn-secondary auth-gate-btn">
+                                🌱 Create Free Account
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="market-page">
             <div className="bg-blobs">
@@ -527,12 +557,12 @@ export default function MarketPrices() {
                             type="button"
                             onClick={handleSyncLiveData}
                             disabled={scrapingLive || refreshing}
-                            className="btn-sync-live"
-                            title="Synchronize latest live commodity rates from government mandis"
-                            aria-label="Sync with Live Data"
+                            className="btn-sync-live admin-sync-btn"
+                            title="Trigger live web scrape from AMIS Punjab (Government Portal)"
+                            aria-label="Sync Live AMIS"
                         >
                             <span className={`sync-icon ${scrapingLive ? "spin-animation" : ""}`}>🔄</span>
-                            <span>{scrapingLive ? "Syncing Live Data..." : "Sync with Live Data"}</span>
+                            <span>{scrapingLive ? "Syncing Live Data..." : "Sync Live AMIS"}</span>
                         </button>
                         <button
                             type="button"
