@@ -18,12 +18,18 @@ server/uploads/*
 uploads/*
 !server/uploads/.gitkeep
 
-# Python
+# Python bytecode & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
 ml-service/__pycache__/
-ml-service/*.pyc
 ml-service/.venv/
 ml-service/venv/
-.venv/
+.pytest_cache/
 
 # ML model files (large — use Git LFS or download separately)
 ml-service/models/*.h5
@@ -65,7 +71,11 @@ downloads/latest-model/*
 
 # Temp & misc
 tmp/
+scratch/
+scratch_*.js
 .node_repl_history
+.agents/
+.claude/
 
 # Documentation & reports (local only)
 docs/

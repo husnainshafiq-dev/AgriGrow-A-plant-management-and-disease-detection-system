@@ -1,0 +1,39 @@
+# Set default behavior to automatically normalize line endings
+* text=auto eol=lf
+
+# Explicit text files
+*.js text eol=lf
+*.jsx text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.json text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.md text eol=lf
+*.py text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.sh text eol=lf
+*.ps1 text eol=lf
+*.env.example text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# Explicit binary files (do not convert line endings)
+*.h5 binary
+*.keras binary
+*.onnx binary
+*.pb binary
+*.bin binary
+*.zip binary
+*.tar.gz binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ico binary
+*.svg text
+*.pdf binary
+*.ttf binary
+*.woff binary
+*.woff2 binary

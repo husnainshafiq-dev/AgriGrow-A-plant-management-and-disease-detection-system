@@ -1,0 +1,54 @@
+name: AgriGrow CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  client-build:
+    name: Build Frontend (Vite + React)
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js 18
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18
+        cache: 'npm'
+        cache-dependency-path: 'client/package-lock.json'
+
+    - name: Install client dependencies
+      working-directory: ./client
+      run: npm ci
+
+    - name: Run Vite build
+      working-directory: ./client
+      run: npm run build
+
+  server-lint:
+    name: Validate Server Backend
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js 18
+      uses: actions/setup-node@v4
+      with:
+        node-version: 18
+        cache: 'npm'
+        cache-dependency-path: 'server/package-lock.json'
+
+    - name: Install server dependencies
+      working-directory: ./server
+      run: npm ci
+
+    - name: Validate server syntax
+      working-directory: ./server
+      run: node --check server.js
