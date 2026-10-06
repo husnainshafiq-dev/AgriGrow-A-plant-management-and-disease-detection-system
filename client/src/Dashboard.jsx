@@ -620,6 +620,7 @@ export default function Dashboard({ onBack }) {
                 setActiveField(null);
 
                 // Fetch weather for clicked coordinates
+                setWeatherLoading(true);
                 try {
                     const res = await fetch(`${API_BASE}/weather?lat=${lat}&lng=${lng}`);
                     const data = await res.json();
@@ -629,6 +630,9 @@ export default function Dashboard({ onBack }) {
                         setSeasonInfo(data.data.season);
                     }
                 } catch (_) {}
+                finally {
+                    setWeatherLoading(false);
+                }
 
                 // Reverse geocode in background
                 try {
@@ -695,8 +699,7 @@ export default function Dashboard({ onBack }) {
             );
 
             polygon.on("click", () => {
-                setActiveField(field);
-                setPanelTab("field");
+                flyToField(field);
             });
 
             fieldLayersRef.current[field._id] = polygon;
@@ -712,6 +715,9 @@ export default function Dashboard({ onBack }) {
                     weight: 2,
                 }).addTo(map);
                 marker.bindTooltip(field.name, { direction: "top", offset: [0, -10] });
+                marker.on("click", () => {
+                    flyToField(field);
+                });
                 markersRef.current.push(marker);
             }
         });
@@ -790,15 +796,40 @@ export default function Dashboard({ onBack }) {
         }
 
         setActiveField(field);
-        if (field.weather) {
-            setWeather(field.weather);
-        } else if (field.centroid?.coordinates) {
-            const [lng, lat] = field.centroid.coordinates;
-            fetch(`${API_BASE}/weather?lat=${lat}&lng=${lng}`)
-                .then(r => r.json())
-                .then(d => { if (d.success) setWeather(d.data.current); })
-                .catch(() => {});
+
+        // Find centroid coordinates of the selected land to fetch real-time live weather
+        let targetLat = null;
+        let targetLng = null;
+        if (field.centroid?.coordinates) {
+            targetLng = field.centroid.coordinates[0];
+            targetLat = field.centroid.coordinates[1];
+        } else if (field.boundary?.coordinates?.[0]?.[0]) {
+            targetLng = field.boundary.coordinates[0][0][0];
+            targetLat = field.boundary.coordinates[0][0][1];
         }
+
+        if (targetLat !== null && targetLng !== null) {
+            setWeatherLoading(true);
+            fetch(`${API_BASE}/weather?lat=${targetLat}&lng=${targetLng}`)
+                .then((r) => r.json())
+                .then((d) => {
+                    if (d.success && d.data) {
+                        setWeather(d.data.current);
+                        setForecast(d.data.forecast || []);
+                        setSeasonInfo(d.data.season);
+                        field.weather = d.data.current;
+                    } else if (field.weather && !field.weather.isMock) {
+                        setWeather(field.weather);
+                    }
+                })
+                .catch(() => {
+                    if (field.weather && !field.weather.isMock) setWeather(field.weather);
+                })
+                .finally(() => setWeatherLoading(false));
+        } else if (field.weather && !field.weather.isMock) {
+            setWeather(field.weather);
+        }
+
         setAiAnalysis(field.aiRecommendation ? { recommendation: field.aiRecommendation, weather: field.weather } : null);
         setPanelTab("field");
         setPanelOpen(true);
@@ -831,6 +862,13 @@ export default function Dashboard({ onBack }) {
                 combined.push(lf);
             }
         }
+
+        // Clean out any stale mock flags from previously stored fields so fresh live weather always loads
+        combined.forEach((f) => {
+            if (f.weather?.isMock) {
+                delete f.weather;
+            }
+        });
 
         setSavedFields(combined);
         return combined;

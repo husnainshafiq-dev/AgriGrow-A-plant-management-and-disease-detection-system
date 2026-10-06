@@ -132,51 +132,149 @@ const calculateArea = (coordinates, unit = "acres") => {
  *
  * @param {number} lat - Latitude
  * @param {number} lng - Longitude
+// Map WMO weather interpretation codes to condition names and icons
+const mapWmoToCondition = (code) => {
+    if (code === 0) return { condition: "Clear", conditionDetail: "clear sky", icon: "01d" };
+    if ([1, 2].includes(code)) return { condition: "Clouds", conditionDetail: "partly cloudy", icon: "02d" };
+    if (code === 3) return { condition: "Clouds", conditionDetail: "overcast", icon: "04d" };
+    if ([45, 48].includes(code)) return { condition: "Fog", conditionDetail: "foggy", icon: "50d" };
+    if ([51, 53, 55].includes(code)) return { condition: "Drizzle", conditionDetail: "light drizzle", icon: "09d" };
+    if ([61, 63, 65, 80, 81, 82].includes(code)) return { condition: "Rain", conditionDetail: "rain showers", icon: "10d" };
+    if ([71, 73, 75, 77, 85, 86].includes(code)) return { condition: "Snow", conditionDetail: "snowfall", icon: "13d" };
+    if ([95, 96, 99].includes(code)) return { condition: "Thunderstorm", conditionDetail: "thunderstorm", icon: "11d" };
+    return { condition: "Clear", conditionDetail: "clear sky", icon: "01d" };
+};
+
+const fetchOpenMeteoWeather = async (lat, lng) => {
+    try {
+        const url = "https://api.open-meteo.com/v1/forecast";
+        const response = await axios.get(url, {
+            params: {
+                latitude: lat,
+                longitude: lng,
+                current: "temperature_2m,relative_humidity_2m,apparent_temperature,cloud_cover,surface_pressure,wind_speed_10m,wind_direction_10m,weather_code",
+            },
+            timeout: 8000,
+        });
+
+        const current = response.data.current;
+        if (!current) return null;
+        const wmo = mapWmoToCondition(current.weather_code);
+
+        return {
+            temperature: Math.round(current.temperature_2m * 10) / 10,
+            feelsLike: Math.round(current.apparent_temperature * 10) / 10,
+            humidity: Math.round(current.relative_humidity_2m),
+            pressure: Math.round(current.surface_pressure),
+            windSpeed: Math.round(current.wind_speed_10m * 10) / 10,
+            windDirection: current.wind_direction_10m || 0,
+            visibility: 10000,
+            cloudCoverage: current.cloud_cover || 0,
+            condition: wmo.condition,
+            conditionDetail: wmo.conditionDetail,
+            icon: wmo.icon,
+            locationName: `Farmland (${lat.toFixed(4)}°, ${lng.toFixed(4)}°)`,
+            fetchedAt: new Date(),
+        };
+    } catch (err) {
+        logger.warn(`Open-Meteo weather fallback failed: ${err.message}`);
+        return null;
+    }
+};
+
+const fetchOpenMeteoForecast = async (lat, lng) => {
+    try {
+        const url = "https://api.open-meteo.com/v1/forecast";
+        const response = await axios.get(url, {
+            params: {
+                latitude: lat,
+                longitude: lng,
+                hourly: "temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,precipitation_probability",
+                forecast_days: 2,
+            },
+            timeout: 8000,
+        });
+
+        const h = response.data.hourly;
+        if (!h || !h.time) return null;
+
+        const forecastList = [];
+        for (let i = 0; i < Math.min(h.time.length, 16); i += 2) {
+            const wmo = mapWmoToCondition(h.weather_code[i]);
+            forecastList.push({
+                dt: Math.floor(new Date(h.time[i]).getTime() / 1000),
+                date: new Date(h.time[i]).toISOString(),
+                temperature: Math.round(h.temperature_2m[i] * 10) / 10,
+                humidity: Math.round(h.relative_humidity_2m[i]),
+                condition: wmo.condition,
+                conditionDetail: wmo.conditionDetail,
+                icon: wmo.icon,
+                windSpeed: Math.round(h.wind_speed_10m[i] * 10) / 10,
+                pop: Math.round(h.precipitation_probability[i] || 0),
+            });
+        }
+        return forecastList;
+    } catch (err) {
+        logger.warn(`Open-Meteo forecast fallback failed: ${err.message}`);
+        return null;
+    }
+};
+
+/**
+ * Fetch real-time weather data for given coordinates.
+ *
+ * API: OpenWeatherMap "Current Weather Data" (free tier)
+ * Endpoint: https://api.openweathermap.org/data/2.5/weather
+ * Fallback: Open-Meteo live API (no key required)
+ *
+ * @param {number} lat - Latitude
+ * @param {number} lng - Longitude
  * @returns {Object} Normalized weather data
  */
 const fetchWeather = async (lat, lng) => {
     const apiKey = config.OPENWEATHER_API_KEY;
 
-    if (!apiKey) {
-        logger.warn("OPENWEATHER_API_KEY not set — returning mock weather data");
-        return getMockWeather();
+    if (apiKey) {
+        try {
+            const url = `https://api.openweathermap.org/data/2.5/weather`;
+            const response = await axios.get(url, {
+                params: {
+                    lat,
+                    lon: lng,
+                    appid: apiKey,
+                    units: "metric", // Celsius
+                },
+                timeout: 8000,
+            });
+
+            const data = response.data;
+
+            return {
+                temperature: Math.round(data.main.temp * 10) / 10,
+                feelsLike: Math.round(data.main.feels_like * 10) / 10,
+                humidity: data.main.humidity,
+                pressure: data.main.pressure,
+                windSpeed: data.wind.speed,
+                windDirection: data.wind.deg || 0,
+                visibility: data.visibility || 10000,
+                cloudCoverage: data.clouds?.all || 0,
+                condition: data.weather?.[0]?.main || "Unknown",
+                conditionDetail: data.weather?.[0]?.description || "",
+                icon: data.weather?.[0]?.icon || "01d",
+                locationName: data.name ? `${data.name}, ${data.sys?.country || ""}` : "",
+                fetchedAt: new Date(),
+            };
+        } catch (error) {
+            logger.warn(`OpenWeatherMap error (${error.message}) — attempting Open-Meteo fallback`);
+        }
     }
 
-    try {
-        const url = `https://api.openweathermap.org/data/2.5/weather`;
-        const response = await axios.get(url, {
-            params: {
-                lat,
-                lon: lng,
-                appid: apiKey,
-                units: "metric", // Celsius
-            },
-            timeout: 10000,
-        });
+    // Try Open-Meteo live weather fallback
+    const liveMeteo = await fetchOpenMeteoWeather(lat, lng);
+    if (liveMeteo) return liveMeteo;
 
-        const data = response.data;
-
-        return {
-            temperature: Math.round(data.main.temp * 10) / 10,
-            feelsLike: Math.round(data.main.feels_like * 10) / 10,
-            humidity: data.main.humidity,
-            pressure: data.main.pressure,
-            windSpeed: data.wind.speed,
-            windDirection: data.wind.deg || 0,
-            visibility: data.visibility || 10000,
-            cloudCoverage: data.clouds?.all || 0,
-            condition: data.weather?.[0]?.main || "Unknown",
-            conditionDetail: data.weather?.[0]?.description || "",
-            icon: data.weather?.[0]?.icon || "01d",
-            locationName: data.name ? `${data.name}, ${data.sys?.country || ""}` : "",
-            fetchedAt: new Date(),
-        };
-    } catch (error) {
-        logger.error(`Weather API error: ${error.message}`);
-
-        // Return mock data on failure so the dashboard still works
-        return getMockWeather();
-    }
+    // Return mock data only if both live weather providers fail
+    return getMockWeather();
 };
 
 /**
@@ -189,38 +287,41 @@ const fetchWeather = async (lat, lng) => {
 const fetchForecast = async (lat, lng) => {
     const apiKey = config.OPENWEATHER_API_KEY;
 
-    if (!apiKey) {
-        return getMockForecast();
+    if (apiKey) {
+        try {
+            const url = `https://api.openweathermap.org/data/2.5/forecast`;
+            const response = await axios.get(url, {
+                params: {
+                    lat,
+                    lon: lng,
+                    appid: apiKey,
+                    units: "metric",
+                    cnt: 16, // ~2 days of 3-hour intervals
+                },
+                timeout: 8000,
+            });
+
+            return response.data.list.map((entry) => ({
+                dt: entry.dt,
+                date: new Date(entry.dt * 1000).toISOString(),
+                temperature: Math.round(entry.main.temp * 10) / 10,
+                humidity: entry.main.humidity,
+                condition: entry.weather?.[0]?.main || "Unknown",
+                conditionDetail: entry.weather?.[0]?.description || "",
+                icon: entry.weather?.[0]?.icon || "01d",
+                windSpeed: entry.wind?.speed || 0,
+                pop: Math.round((entry.pop || 0) * 100), // Probability of precipitation %
+            }));
+        } catch (error) {
+            logger.warn(`OpenWeather forecast error (${error.message}) — attempting Open-Meteo fallback`);
+        }
     }
 
-    try {
-        const url = `https://api.openweathermap.org/data/2.5/forecast`;
-        const response = await axios.get(url, {
-            params: {
-                lat,
-                lon: lng,
-                appid: apiKey,
-                units: "metric",
-                cnt: 16, // ~2 days of 3-hour intervals
-            },
-            timeout: 10000,
-        });
+    // Try Open-Meteo forecast fallback
+    const liveForecast = await fetchOpenMeteoForecast(lat, lng);
+    if (liveForecast && liveForecast.length > 0) return liveForecast;
 
-        return response.data.list.map((entry) => ({
-            dt: entry.dt,
-            date: new Date(entry.dt * 1000).toISOString(),
-            temperature: Math.round(entry.main.temp * 10) / 10,
-            humidity: entry.main.humidity,
-            condition: entry.weather?.[0]?.main || "Unknown",
-            conditionDetail: entry.weather?.[0]?.description || "",
-            icon: entry.weather?.[0]?.icon || "01d",
-            windSpeed: entry.wind?.speed || 0,
-            pop: Math.round((entry.pop || 0) * 100), // Probability of precipitation %
-        }));
-    } catch (error) {
-        logger.error(`Forecast API error: ${error.message}`);
-        return getMockForecast();
-    }
+    return getMockForecast();
 };
 
 // -----------------------------------------------------------
