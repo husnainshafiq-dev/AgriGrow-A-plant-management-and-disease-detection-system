@@ -1,5 +1,5 @@
 const User = require("../models/User");
-const BlogPost = require("../models/BlogPost");
+const { BlogPost } = require("../models/BlogPost");
 const Advisory = require("../models/Advisory");
 const Question = require("../models/Question");
 const asyncHandler = require("express-async-handler");
@@ -12,9 +12,10 @@ const getBookmarks = asyncHandler(async (req, res) => {
     const user = await User.findById(req.user._id);
     if (!user) return sendError(res, 404, "User not found");
 
-    const articleIds = user.bookmarks.filter(b => b.type === "article").map(b => b.itemId);
-    const advisoryIds = user.bookmarks.filter(b => b.type === "advisory").map(b => b.itemId);
-    const questionIds = user.bookmarks.filter(b => b.type === "question").map(b => b.itemId);
+    const bookmarks = Array.isArray(user.bookmarks) ? user.bookmarks : [];
+    const articleIds = bookmarks.filter(b => b.type === "article").map(b => b.itemId);
+    const advisoryIds = bookmarks.filter(b => b.type === "advisory").map(b => b.itemId);
+    const questionIds = bookmarks.filter(b => b.type === "question").map(b => b.itemId);
 
     const articles = await BlogPost.find({ _id: { $in: articleIds } });
     const advisories = await Advisory.find({ _id: { $in: advisoryIds } });
@@ -42,10 +43,12 @@ const addBookmark = asyncHandler(async (req, res) => {
     }
 
     const user = await User.findById(req.user._id);
-    
+    if (!user) return sendError(res, 404, "User not found");
+    if (!Array.isArray(user.bookmarks)) user.bookmarks = [];
+
     // Check if duplicate
     const exists = user.bookmarks.some(
-        b => b.type === type && b.itemId.toString() === itemId.toString()
+        b => b.type === type && b.itemId && b.itemId.toString() === itemId.toString()
     );
 
     if (exists) {
@@ -65,9 +68,11 @@ const removeBookmark = asyncHandler(async (req, res) => {
     const { type, itemId } = req.params;
 
     const user = await User.findById(req.user._id);
+    if (!user) return sendError(res, 404, "User not found");
+    if (!Array.isArray(user.bookmarks)) user.bookmarks = [];
     
     user.bookmarks = user.bookmarks.filter(
-        b => !(b.type === type && b.itemId.toString() === itemId.toString())
+        b => !(b.type === type && b.itemId && b.itemId.toString() === itemId.toString())
     );
 
     await user.save();
@@ -81,9 +86,11 @@ const checkBookmark = asyncHandler(async (req, res) => {
     const { type, itemId } = req.params;
 
     const user = await User.findById(req.user._id);
+    if (!user) return sendError(res, 404, "User not found");
+    const bookmarks = Array.isArray(user.bookmarks) ? user.bookmarks : [];
     
-    const exists = user.bookmarks.some(
-        b => b.type === type && b.itemId.toString() === itemId.toString()
+    const exists = bookmarks.some(
+        b => b.type === type && b.itemId && b.itemId.toString() === itemId.toString()
     );
 
     sendSuccess(res, 200, "Checked bookmark status", { bookmarked: exists });
