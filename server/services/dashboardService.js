@@ -144,6 +144,9 @@ const fetchOpenMeteoWeather = async (lat, lng) => {
                 longitude: lng,
                 current: "temperature_2m,relative_humidity_2m,apparent_temperature,cloud_cover,surface_pressure,wind_speed_10m,wind_direction_10m,weather_code",
             },
+            headers: {
+                "User-Agent": "AgriGrow-App/1.0 (https://github.com/husnainshafiq-dev/AgriGrow-A-plant-management-and-disease-detection-system)",
+            },
             timeout: 8000,
         });
 
@@ -181,6 +184,9 @@ const fetchOpenMeteoForecast = async (lat, lng) => {
                 longitude: lng,
                 hourly: "temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,precipitation_probability",
                 forecast_days: 2,
+            },
+            headers: {
+                "User-Agent": "AgriGrow-App/1.0 (https://github.com/husnainshafiq-dev/AgriGrow-A-plant-management-and-disease-detection-system)",
             },
             timeout: 8000,
         });

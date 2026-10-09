@@ -412,10 +412,12 @@ export default function Dashboard({ onBack }) {
             }
         } catch (_) {}
 
-        // Fallback directly to Open-Meteo in browser if backend is cold/failed
-        if (!resolved || !resolved.current) {
+        // Fallback directly to Open-Meteo in browser if backend is cold/failed or returned mock data
+        if (!resolved || !resolved.current || resolved.current.isMock) {
             const fallback = await fetchClientOpenMeteoWeather(lat, lng, locationLabel);
-            if (fallback) resolved = fallback;
+            if (fallback && fallback.current) {
+                resolved = fallback;
+            }
         }
 
         if (resolved && resolved.current) {
