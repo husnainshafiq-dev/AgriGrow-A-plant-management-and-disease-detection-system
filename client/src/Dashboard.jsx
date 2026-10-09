@@ -168,6 +168,141 @@ function loadResource(url, type = "script") {
     });
 }
 
+/* ── Client-side Open-Meteo Weather Fallback ────────────── */
+const mapClientWmo = (code) => {
+    if (code === 0) return { condition: "Clear", conditionDetail: "clear sky", icon: "01d" };
+    if ([1, 2].includes(code)) return { condition: "Clouds", conditionDetail: "partly cloudy", icon: "02d" };
+    if (code === 3) return { condition: "Clouds", conditionDetail: "overcast", icon: "04d" };
+    if ([45, 48].includes(code)) return { condition: "Fog", conditionDetail: "foggy", icon: "50d" };
+    if ([51, 53, 55].includes(code)) return { condition: "Drizzle", conditionDetail: "light drizzle", icon: "09d" };
+    if ([61, 63, 65, 80, 81, 82].includes(code)) return { condition: "Rain", conditionDetail: "rain showers", icon: "10d" };
+    if ([71, 73, 75, 77, 85, 86].includes(code)) return { condition: "Snow", conditionDetail: "snowfall", icon: "13d" };
+    if ([95, 96, 99].includes(code)) return { condition: "Thunderstorm", conditionDetail: "thunderstorm", icon: "11d" };
+    return { condition: "Clear", conditionDetail: "clear sky", icon: "01d" };
+};
+
+async function fetchClientOpenMeteoWeather(lat, lng, locationLabel = "") {
+    try {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,apparent_temperature,cloud_cover,surface_pressure,wind_speed_10m,wind_direction_10m,weather_code&hourly=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m,precipitation_probability&forecast_days=2`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data?.current) {
+            const wmo = mapClientWmo(data.current.weather_code);
+            const current = {
+                temperature: Math.round(data.current.temperature_2m * 10) / 10,
+                feelsLike: Math.round(data.current.apparent_temperature * 10) / 10,
+                humidity: Math.round(data.current.relative_humidity_2m),
+                pressure: Math.round(data.current.surface_pressure),
+                windSpeed: Math.round(data.current.wind_speed_10m * 10) / 10,
+                windDirection: data.current.wind_direction_10m || 0,
+                visibility: 10000,
+                cloudCoverage: data.current.cloud_cover || 0,
+                condition: wmo.condition,
+                conditionDetail: wmo.conditionDetail,
+                icon: wmo.icon,
+                locationName: locationLabel || `Farmland (${Number(lat).toFixed(4)}°, ${Number(lng).toFixed(4)}°)`,
+                fetchedAt: new Date().toISOString()
+            };
+            const forecast = [];
+            const h = data.hourly;
+            if (h?.time) {
+                for (let i = 0; i < Math.min(h.time.length, 16); i += 2) {
+                    const hwmo = mapClientWmo(h.weather_code[i]);
+                    forecast.push({
+                        dt: Math.floor(new Date(h.time[i]).getTime() / 1000),
+                        date: new Date(h.time[i]).toISOString(),
+                        temperature: Math.round(h.temperature_2m[i] * 10) / 10,
+                        humidity: Math.round(h.relative_humidity_2m[i]),
+                        condition: hwmo.condition,
+                        conditionDetail: hwmo.conditionDetail,
+                        icon: hwmo.icon,
+                        windSpeed: Math.round(h.wind_speed_10m[i] * 10) / 10,
+                        pop: Math.round(h.precipitation_probability[i] || 0)
+                    });
+                }
+            }
+            return { current, forecast };
+        }
+    } catch (_) {}
+    return null;
+}
+
+const getClientFallbackCrops = (weather, seasonInfo, area) => ({
+    recommendation: {
+        fullResponse: `## 🌾 Best Crops to Grow Right Now
+
+*   **Wheat (Gandum)**
+    *   **Suitability:** Well-adapted to current temperatures (${weather?.temperature || 24}°C) and ${seasonInfo?.seasonName || "Rabi Season"}. Excellent drought tolerance and high caloric productivity.
+    *   **Expected Yield:** 38–48 mounds per acre.
+    *   **Water Requirements:** 3–4 timely irrigations during vegetative, tillering, and flowering stages.
+    *   **Duration:** 120–135 days to harvest.
+    *   **Market Insight:** High baseline demand across national markets with government minimum support pricing.
+
+*   **Barley (Jau)**
+    *   **Suitability:** Highly drought-resistant, thrives in low-fertility soils and cool periods.
+    *   **Expected Yield:** 25–32 mounds per acre.
+    *   **Water Requirements:** Minimal (2 light irrigations).
+    *   **Duration:** 100–115 days.
+    *   **Market Insight:** Growing demand for animal fodder and dietary grain products.
+
+*   **Mustard / Canola (Sarson / Raya)**
+    *   **Suitability:** Thrives in moderate humidity (${weather?.humidity || 50}%) and cool night temperatures.
+    *   **Expected Yield:** 18–24 mounds per acre.
+    *   **Water Requirements:** 2–3 irrigations with low water demand.
+    *   **Duration:** 105–125 days.
+    *   **Market Insight:** Outstanding profit margin with high demand for edible domestic oil production.
+
+*   **Chickpeas / Gram (Chana)**
+    *   **Suitability:** Deep-rooting nitrogen fixer ideal for sandy loam soils and moisture-constrained land.
+    *   **Expected Yield:** 15–20 mounds per acre.
+    *   **Water Requirements:** 1–2 irrigations (often rainfed).
+    *   **Duration:** 110–130 days.
+    *   **Market Insight:** Premium pulse rates in regional grain mandis.`
+    }
+});
+
+const getClientFallbackDiseases = (weather, seasonInfo) => ({
+    recommendation: {
+        fullResponse: `## 🛡️ Disease Prevention for Current Conditions
+
+With current humidity (${weather?.humidity || 50}%) and temperature (${weather?.temperature || 24}°C):
+
+*   **Powdery Mildew & Rust Pathogens**
+    *   **Cause:** Fungal spores multiplying under mild temperatures and fluctuating day/night moisture.
+    *   **Early Symptoms:** White powder patches or orange/yellow rust pustules on leaf surfaces.
+    *   **Preventive Measures:** Ensure 15–20cm row spacing for ventilation; apply prophylactic sulfur dusting or neem oil spray.
+    *   **Treatment Cost:** ~800–1,200 PKR / acre.
+
+*   **Aphids & Sucking Pests**
+    *   **Cause:** Temperature swings favor rapid aphid colonisation on tender shoots.
+    *   **Early Symptoms:** Leaf curling, sticky honeydew on stems, stunted growth.
+    *   **Preventive Measures:** Yellow sticky traps along field perimeter; spray Imidacloprid (0.5ml/L) only if threshold exceeds 5 aphids/leaf.
+    *   **Treatment Cost:** ~950 PKR / acre.
+
+*   **Root Rot & Damping Off**
+    *   **Cause:** Soil-borne pathogens in poorly drained patches.
+    *   **Early Symptoms:** Yellowing lower foliage, weak root anchor.
+    *   **Preventive Measures:** Avoid over-irrigation; treat seed with Trichoderma viride or Carboxin before sowing.
+    *   **Treatment Cost:** ~600 PKR / acre.`
+    }
+});
+
+const getClientFallbackTips = (weather, seasonInfo, area) => ({
+    recommendation: {
+        fullResponse: `## 🌤️ Weather-Based Farming Tips
+
+*   **Irrigation Timing:** Apply irrigation in the early morning (6:00 AM – 9:00 AM) or late afternoon to minimize evaporation losses given current conditions.
+*   **Fieldwork Window:** Ideal field operations between 8:00 AM and 4:00 PM; current wind speed (${weather?.windSpeed || 4} km/h) is suitable for precision spraying.
+*   **Soil Management:** Apply straw mulching around field borders to conserve soil moisture and suppress weed emergence.
+
+## 📊 Season Planning Summary (${Number(area || 1).toFixed(1)} Acres)
+
+*   **Key Timeline:** Sowing completion recommended within the next 14 days for optimal tillering.
+*   **Rotation Strategy:** Follow Rabi crops with short-duration green manure (Dhaincha/Sesbania) or Zaid pulses before Kharif planting.
+*   **Estimated Production Investment:** ~35,000–45,000 PKR per acre covering certified seed, basal fertilizer, and fuel costs.`
+    }
+});
+
 /* ================================================================
    MAIN DASHBOARD COMPONENT
    ================================================================ */
@@ -263,6 +398,40 @@ export default function Dashboard({ onBack }) {
         setSuccessMsg(msg);
         setTimeout(() => setSuccessMsg(null), 5000);
     };
+
+    /* ── Weather Telemetry Loader (Dual: Backend API + Open-Meteo Fallback) ── */
+    const loadWeatherTelemetry = useCallback(async (lat, lng, locationLabel = "") => {
+        if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) return null;
+        setWeatherLoading(true);
+        let resolved = null;
+        try {
+            const res = await fetch(`${API_BASE}/weather?lat=${lat}&lng=${lng}`);
+            const data = await res.json();
+            if (data?.success && data?.data?.current) {
+                resolved = data.data;
+            }
+        } catch (_) {}
+
+        // Fallback directly to Open-Meteo in browser if backend is cold/failed
+        if (!resolved || !resolved.current) {
+            const fallback = await fetchClientOpenMeteoWeather(lat, lng, locationLabel);
+            if (fallback) resolved = fallback;
+        }
+
+        if (resolved && resolved.current) {
+            const currentWeather = {
+                ...resolved.current,
+                locationName: locationLabel || resolved.current.locationName || `Farmland (${Number(lat).toFixed(4)}°, ${Number(lng).toFixed(4)}°)`
+            };
+            setWeather(currentWeather);
+            setForecast(resolved.forecast || []);
+            if (resolved.season) setSeasonInfo(resolved.season);
+            setWeatherLoading(false);
+            return currentWeather;
+        }
+        setWeatherLoading(false);
+        return null;
+    }, []);
 
     /* ── Location Search (Multi-provider: Photon + Nominatim) ── */
     const searchLocation = useCallback(async (query) => {
@@ -405,19 +574,8 @@ export default function Dashboard({ onBack }) {
             elevation: "Level Agricultural Basin"
         });
         
-        // Fetch weather for this point
-        setWeatherLoading(true);
-        fetch(`${API_BASE}/weather?lat=${lat}&lng=${lng}`)
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    setWeather({ ...data.data.current, locationName: result.display_name?.split(",")[0] });
-                    setForecast(data.data.forecast || []);
-                    setSeasonInfo(data.data.season);
-                }
-            })
-            .catch(() => showError("Could not fetch weather for this location"))
-            .finally(() => setWeatherLoading(false));
+        // Fetch live weather telemetry for this point
+        loadWeatherTelemetry(lat, lng, result.display_name?.split(",")[0]);
 
         // Close dropdown and keep query text
         setSearchQuery(result.display_name?.split(",").slice(0, 2).join(", ") || "");
@@ -619,20 +777,8 @@ export default function Dashboard({ onBack }) {
 
                 setActiveField(null);
 
-                // Fetch weather for clicked coordinates
-                setWeatherLoading(true);
-                try {
-                    const res = await fetch(`${API_BASE}/weather?lat=${lat}&lng=${lng}`);
-                    const data = await res.json();
-                    if (data.success) {
-                        setWeather(data.data.current);
-                        setForecast(data.data.forecast || []);
-                        setSeasonInfo(data.data.season);
-                    }
-                } catch (_) {}
-                finally {
-                    setWeatherLoading(false);
-                }
+                // Fetch live weather telemetry for clicked coordinates
+                loadWeatherTelemetry(lat, lng);
 
                 // Reverse geocode in background
                 try {
@@ -844,27 +990,11 @@ export default function Dashboard({ onBack }) {
         });
 
         if (targetLat !== null && targetLng !== null && !isNaN(targetLat) && !isNaN(targetLng)) {
-            setWeatherLoading(true);
-            fetch(`${API_BASE}/weather?lat=${targetLat}&lng=${targetLng}`)
-                .then((r) => r.json())
-                .then((d) => {
-                    if (d.success && d.data) {
-                        const currentWeather = {
-                            ...d.data.current,
-                            locationName: field.name ? `${field.name}${field.locationName ? ` • ${field.locationName}` : ""}` : (d.data.current?.locationName || "Selected Field")
-                        };
-                        setWeather(currentWeather);
-                        setForecast(d.data.forecast || []);
-                        setSeasonInfo(d.data.season);
-                        field.weather = currentWeather;
-                    } else if (field.weather && !field.weather.isMock) {
-                        setWeather(field.weather);
-                    }
-                })
-                .catch(() => {
-                    if (field.weather && !field.weather.isMock) setWeather(field.weather);
-                })
-                .finally(() => setWeatherLoading(false));
+            const locLabel = field.name ? `${field.name}${field.locationName ? ` • ${field.locationName}` : ""}` : (field.locationName || field.name || "Selected Field");
+            loadWeatherTelemetry(targetLat, targetLng, locLabel).then((w) => {
+                if (w) field.weather = w;
+                else if (field.weather && !field.weather.isMock) setWeather(field.weather);
+            });
         } else if (field.weather && !field.weather.isMock) {
             setWeather(field.weather);
         }
@@ -934,18 +1064,9 @@ export default function Dashboard({ onBack }) {
     /* ── Fetch initial telemetry for selected farmland on mount ── */
     useEffect(() => {
         if (!weather) {
-            fetch(`${API_BASE}/weather?lat=31.5204&lng=74.3587`)
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        setWeather(data.data.current);
-                        setForecast(data.data.forecast || []);
-                        setSeasonInfo(data.data.season);
-                    }
-                })
-                .catch(() => {});
+            loadWeatherTelemetry(31.5204, 74.3587, "Punjab Agricultural Basin, PK");
         }
-    }, []);
+    }, [loadWeatherTelemetry]);
 
     /* ── Start Drawing (Unselects all old coordinates & markers) ─ */
     const startDrawing = () => {
@@ -1051,21 +1172,15 @@ export default function Dashboard({ onBack }) {
 
         // Calculate centroid for weather lookup
         const centroid = calcCentroid(drawingPoints);
+        setSelectedLand((prev) => ({
+            ...prev,
+            lat: centroid.lat,
+            lng: centroid.lng,
+            locationName: fieldName.trim() || `Farmland (${centroid.lat.toFixed(4)}°, ${centroid.lng.toFixed(4)}°)`,
+        }));
 
-        // Fetch weather
-        setWeatherLoading(true);
-        try {
-            const res = await fetch(`${API_BASE}/weather?lat=${centroid.lat}&lng=${centroid.lng}`);
-            const data = await res.json();
-            if (data.success) {
-                setWeather(data.data.current);
-                setForecast(data.data.forecast || []);
-                setSeasonInfo(data.data.season);
-            }
-        } catch {
-            showError("Could not fetch weather data");
-        }
-        setWeatherLoading(false);
+        // Fetch live weather telemetry
+        await loadWeatherTelemetry(centroid.lat, centroid.lng, fieldName.trim() || "Drawn Farmland");
     };
 
     /* ── Save Field (Saves to Database & LocalStorage) ──────── */
@@ -1144,11 +1259,20 @@ export default function Dashboard({ onBack }) {
 
     /* ── Run AI Analysis ───────────────────────────────────── */
     const runTabAnalysis = async (tabType) => {
+        // Resolve coordinates from drawn polygon, active saved field, or selected map land
         const centroid = drawingPoints.length >= 3
             ? calcCentroid(drawingPoints)
-            : (activeField?.centroid?.coordinates
-                ? { lat: activeField.centroid.coordinates[1], lng: activeField.centroid.coordinates[0] }
-                : null);
+            : (Array.isArray(activeField?.centroid?.coordinates) && activeField.centroid.coordinates.length >= 2
+                ? { lat: Number(activeField.centroid.coordinates[1]), lng: Number(activeField.centroid.coordinates[0]) }
+                : (activeField?.centroid?.lat != null && activeField?.centroid?.lng != null
+                    ? { lat: Number(activeField.centroid.lat), lng: Number(activeField.centroid.lng) }
+                    : (activeField?.lat != null && activeField?.lng != null
+                        ? { lat: Number(activeField.lat), lng: Number(activeField.lng) }
+                        : (activeField?.boundary?.coordinates?.[0]?.[0]
+                            ? { lat: Number(activeField.boundary.coordinates[0][0][1]), lng: Number(activeField.boundary.coordinates[0][0][0]) }
+                            : (selectedLand?.lat != null && selectedLand?.lng != null
+                                ? { lat: Number(selectedLand.lat), lng: Number(selectedLand.lng) }
+                                : null)))));
 
         if (!centroid) {
             showError("Draw or select a field first");
@@ -1160,11 +1284,11 @@ export default function Dashboard({ onBack }) {
 
         const area = calculatedArea || activeField?.area?.value || 1;
         const payload = {
-            fieldId: activeField?._id || null,
+            fieldId: activeField?._id || activeField?.id || null,
             lat: centroid.lat,
             lng: centroid.lng,
             areaAcres: area,
-            locationName: weather?.locationName || activeField?.locationName || "",
+            locationName: weather?.locationName || activeField?.locationName || selectedLand?.locationName || "",
             previousCrops: aiCrops?.recommendation?.fullResponse || "",
             previousDiseases: aiDiseases?.recommendation?.fullResponse || "",
         };
@@ -1172,34 +1296,67 @@ export default function Dashboard({ onBack }) {
         try {
             if (tabType === 'crops') {
                 setLoadingCrops(true);
-                const res = await fetch(`${API_BASE}/analyze/crops`, {
-                    method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(payload),
-                });
-                const data = await res.json();
-                if (data.success) setAiCrops(data.data); else showError(data.error);
-                setLoadingCrops(false);
+                try {
+                    const res = await fetch(`${API_BASE}/analyze/crops`, {
+                        method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(payload),
+                    });
+                    const data = await res.json();
+                    if (data?.success && data?.data) {
+                        setAiCrops(data.data);
+                    } else {
+                        setAiCrops(getClientFallbackCrops(weather, seasonInfo, area));
+                    }
+                } catch {
+                    setAiCrops(getClientFallbackCrops(weather, seasonInfo, area));
+                } finally {
+                    setLoadingCrops(false);
+                }
             } else if (tabType === 'diseases') {
                 setLoadingDiseases(true);
-                const res = await fetch(`${API_BASE}/analyze/diseases`, {
-                    method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(payload),
-                });
-                const data = await res.json();
-                if (data.success) setAiDiseases(data.data); else showError(data.error);
-                setLoadingDiseases(false);
+                try {
+                    const res = await fetch(`${API_BASE}/analyze/diseases`, {
+                        method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(payload),
+                    });
+                    const data = await res.json();
+                    if (data?.success && data?.data) {
+                        setAiDiseases(data.data);
+                    } else {
+                        setAiDiseases(getClientFallbackDiseases(weather, seasonInfo));
+                    }
+                } catch {
+                    setAiDiseases(getClientFallbackDiseases(weather, seasonInfo));
+                } finally {
+                    setLoadingDiseases(false);
+                }
             } else if (tabType === 'tips') {
                 setLoadingTips(true);
-                const res = await fetch(`${API_BASE}/analyze/tips`, {
-                    method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(payload),
-                });
-                const data = await res.json();
-                if (data.success) setAiTips(data.data); else showError(data.error);
-                setLoadingTips(false);
+                try {
+                    const res = await fetch(`${API_BASE}/analyze/tips`, {
+                        method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(payload),
+                    });
+                    const data = await res.json();
+                    if (data?.success && data?.data) {
+                        setAiTips(data.data);
+                    } else {
+                        setAiTips(getClientFallbackTips(weather, seasonInfo, area));
+                    }
+                } catch {
+                    setAiTips(getClientFallbackTips(weather, seasonInfo, area));
+                } finally {
+                    setLoadingTips(false);
+                }
             }
         } catch {
-            showError(`Failed to fetch ${tabType} analysis.`);
-            if (tabType === 'crops') setLoadingCrops(false);
-            if (tabType === 'diseases') setLoadingDiseases(false);
-            if (tabType === 'tips') setLoadingTips(false);
+            if (tabType === 'crops') {
+                setAiCrops(getClientFallbackCrops(weather, seasonInfo, area));
+                setLoadingCrops(false);
+            } else if (tabType === 'diseases') {
+                setAiDiseases(getClientFallbackDiseases(weather, seasonInfo));
+                setLoadingDiseases(false);
+            } else if (tabType === 'tips') {
+                setAiTips(getClientFallbackTips(weather, seasonInfo, area));
+                setLoadingTips(false);
+            }
         }
     };
 

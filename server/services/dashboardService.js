@@ -119,19 +119,9 @@ const calculateArea = (coordinates, unit = "acres") => {
 };
 
 // ============================================================
-// WEATHER SERVICE — OpenWeatherMap Integration
+// WEATHER SERVICE — OpenWeatherMap & Open-Meteo Integration
 // ============================================================
 
-/**
- * Fetch real-time weather data for given coordinates.
- *
- * API: OpenWeatherMap "Current Weather Data" (free tier)
- * Endpoint: https://api.openweathermap.org/data/2.5/weather
- *
- * Free tier limits: 60 calls/minute, 1,000,000 calls/month
- *
- * @param {number} lat - Latitude
- * @param {number} lng - Longitude
 // Map WMO weather interpretation codes to condition names and icons
 const mapWmoToCondition = (code) => {
     if (code === 0) return { condition: "Clear", conditionDetail: "clear sky", icon: "01d" };
@@ -491,6 +481,9 @@ module.exports = {
     calculateArea,
     fetchWeather,
     fetchForecast,
+    fetchOpenMeteoWeather,
+    fetchOpenMeteoForecast,
+    getMockWeather,
     detectSeason,
     buildCropsPrompt,      // Refactored Step 1
     buildDiseasePrompt,    // Refactored Step 2

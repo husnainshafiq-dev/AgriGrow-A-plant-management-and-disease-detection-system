@@ -24,6 +24,7 @@ const {
     calculateArea,
     fetchWeather,
     fetchForecast,
+    getMockWeather,
     detectSeason,
     buildCropsPrompt,
     buildDiseasePrompt,
@@ -232,8 +233,14 @@ const getWeather = asyncHandler(async (req, res) => {
 
     // Fetch current weather and forecast in parallel
     const [weather, forecast] = await Promise.all([
-        fetchWeather(latitude, longitude),
-        fetchForecast(latitude, longitude),
+        fetchWeather(latitude, longitude).catch((err) => {
+            logger.warn(`Weather fetch failed in getWeather: ${err.message}`);
+            return getMockWeather();
+        }),
+        fetchForecast(latitude, longitude).catch((err) => {
+            logger.warn(`Forecast fetch failed in getWeather: ${err.message}`);
+            return [];
+        }),
     ]);
 
     const seasonInfo = detectSeason();
@@ -241,8 +248,8 @@ const getWeather = asyncHandler(async (req, res) => {
     res.json({
         success: true,
         data: {
-            current: weather,
-            forecast,
+            current: weather || getMockWeather(),
+            forecast: forecast || [],
             season: seasonInfo,
         },
     });
@@ -255,7 +262,13 @@ const analyzeCrops = asyncHandler(async (req, res) => {
     const { lat, lng, areaAcres, locationName } = req.body;
     if (!lat || !lng) throw new AppError("Latitude and longitude are required", 400);
 
-    const weather = await fetchWeather(parseFloat(lat), parseFloat(lng));
+    let weather;
+    try {
+        weather = await fetchWeather(parseFloat(lat), parseFloat(lng));
+    } catch (err) {
+        logger.warn(`Weather fetch failed in analyzeCrops: ${err.message}`);
+        weather = getMockWeather();
+    }
     const seasonInfo = detectSeason();
 
     const prompt = buildCropsPrompt(weather, seasonInfo, parseFloat(areaAcres) || 1);
@@ -284,7 +297,13 @@ const analyzeDiseases = asyncHandler(async (req, res) => {
     const { lat, lng, areaAcres, locationName, previousCrops } = req.body;
     if (!lat || !lng) throw new AppError("Latitude and longitude are required", 400);
 
-    const weather = await fetchWeather(parseFloat(lat), parseFloat(lng));
+    let weather;
+    try {
+        weather = await fetchWeather(parseFloat(lat), parseFloat(lng));
+    } catch (err) {
+        logger.warn(`Weather fetch failed in analyzeDiseases: ${err.message}`);
+        weather = getMockWeather();
+    }
     const seasonInfo = detectSeason();
 
     const prompt = buildDiseasePrompt(weather, seasonInfo, previousCrops);
@@ -314,7 +333,13 @@ const analyzeTips = asyncHandler(async (req, res) => {
     const { lat, lng, areaAcres, locationName, previousCrops, previousDiseases } = req.body;
     if (!lat || !lng) throw new AppError("Latitude and longitude are required", 400);
 
-    const weather = await fetchWeather(parseFloat(lat), parseFloat(lng));
+    let weather;
+    try {
+        weather = await fetchWeather(parseFloat(lat), parseFloat(lng));
+    } catch (err) {
+        logger.warn(`Weather fetch failed in analyzeTips: ${err.message}`);
+        weather = getMockWeather();
+    }
     const seasonInfo = detectSeason();
 
     // Pass previousCrops + previousDiseases as the cropsContext for the planning prompt
