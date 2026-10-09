@@ -59,7 +59,19 @@ export default function Home({ modelReady, loadingStatus, isOnline, onOfflineMod
         setOfflineDownloadProgress(0);
 
         try {
-            const { downloadOfflineAssets } = await import("../offlineInstaller");
+            let installerModule;
+            try {
+                installerModule = await import("../offlineInstaller");
+            } catch (importErr) {
+                const isChunkError = /failed to fetch dynamically imported module|error loading dynamically imported module|importing a module script failed/i.test(importErr?.message || "");
+                if (isChunkError) {
+                    console.warn("Detected stale bundle chunk after deployment. Reloading latest app version...");
+                    window.location.reload();
+                    return;
+                }
+                throw importErr;
+            }
+            const { downloadOfflineAssets } = installerModule;
             await downloadOfflineAssets((fraction) => {
                 setOfflineDownloadProgress(Math.max(1, Math.round(fraction * 100)));
             });
@@ -67,7 +79,12 @@ export default function Home({ modelReady, loadingStatus, isOnline, onOfflineMod
             onOfflineModelReady?.(true);
         } catch (err) {
             console.error("[OFFLINE MODEL] Installation failed:", err);
-            showError(`Offline detector download failed: ${err.message}`);
+            const isChunkError = /failed to fetch dynamically imported module|error loading dynamically imported module|importing a module script failed/i.test(err?.message || "");
+            if (isChunkError) {
+                showError("A new version of AgriGrow was deployed. Please refresh the page to apply the update.");
+            } else {
+                showError(`Offline detector download failed: ${err.message}`);
+            }
         } finally {
             setOfflineDownloadProgress(null);
         }
@@ -167,7 +184,23 @@ export default function Home({ modelReady, loadingStatus, isOnline, onOfflineMod
         console.log("🧠 [BROWSER FALLBACK] Starting browser-side prediction...");
         try {
             console.log("🧠 [BROWSER FALLBACK] Step 1/5: Importing offlineModel module...");
-            const { loadOfflineModel, predictOffline, isModelLoaded } = await import("../offlineModel");
+            let offlineModelModule;
+            try {
+                offlineModelModule = await import("../offlineModel");
+            } catch (importErr) {
+                const isChunkError = /failed to fetch dynamically imported module|error loading dynamically imported module|importing a module script failed/i.test(importErr?.message || "");
+                if (isChunkError) {
+                    console.warn("Detected stale bundle chunk after deployment. Reloading latest app version...");
+                    const lastReload = Number(sessionStorage.getItem("agrigrow_chunk_reload") || 0);
+                    if (Date.now() - lastReload > 10000) {
+                        sessionStorage.setItem("agrigrow_chunk_reload", String(Date.now()));
+                        window.location.reload();
+                        return;
+                    }
+                }
+                throw importErr;
+            }
+            const { loadOfflineModel, predictOffline, isModelLoaded } = offlineModelModule;
             console.log(`🧠 [BROWSER FALLBACK] Step 1 done (${((performance.now() - t0) / 1000).toFixed(2)}s). isModelLoaded=${isModelLoaded()}`);
 
             if (!isModelLoaded()) {
@@ -212,7 +245,12 @@ export default function Home({ modelReady, loadingStatus, isOnline, onOfflineMod
         } catch (err) {
             console.error("❌ [BROWSER FALLBACK] Failed:", err);
             console.error("❌ [BROWSER FALLBACK] Stack:", err.stack);
-            showError("Offline prediction failed: " + err.message);
+            const isChunkError = /failed to fetch dynamically imported module|error loading dynamically imported module|importing a module script failed/i.test(err?.message || "");
+            if (isChunkError) {
+                showError("A new version of AgriGrow was deployed. Please refresh the page to apply the update.");
+            } else {
+                showError("Offline prediction failed: " + err.message);
+            }
         }
     };
 

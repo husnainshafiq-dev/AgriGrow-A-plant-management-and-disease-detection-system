@@ -8,6 +8,7 @@
         "dev": "nodemon server.js",
         "start": "node server.js",
         "seed": "node scripts/seed-db.js",
+        "make-admin": "node scripts/make-admin.js",
         "test": "jest --detectOpenHandles"
     },
     "dependencies": {

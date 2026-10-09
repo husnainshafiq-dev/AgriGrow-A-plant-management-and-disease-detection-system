@@ -127,16 +127,6 @@ export default function Profile() {
             await updateProfile({ avatar: compressedBase64 });
             updateUser((prev) => ({ ...prev, avatar: compressedBase64 }));
 
-            // 2. Also send to avatar file upload endpoint if online
-            const fd = new FormData();
-            fd.append("avatar", file);
-            fetch("/api/auth/profile/avatar", {
-                method: "POST",
-                headers: authHeaders(),
-                credentials: "include",
-                body: fd
-            }).catch(() => {});
-
             setStatusMsg("Profile photo updated successfully!");
             setAvatarFile(null);
         } catch (err) {

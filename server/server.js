@@ -69,7 +69,11 @@ const app = express();
 
 // Helmet: sets various HTTP headers for security
 // (X-Content-Type-Options, X-Frame-Options, CSP, etc.)
-app.use(helmet());
+app.use(
+    helmet({
+        crossOriginResourcePolicy: { policy: "cross-origin" },
+    })
+);
 
 // CORS: control which origins can access the API
 app.use(cors(corsOptions));
@@ -97,7 +101,7 @@ app.use(hpp());
 // --- Body Parsing ---
 
 // Parse JSON bodies
-app.use(express.json({ limit: "250kb" }));
+app.use(express.json({ limit: "5mb" }));
 
 // Parse URL-encoded bodies (for form submissions)
 app.use(express.urlencoded({ extended: true, limit: "250kb" }));
@@ -125,7 +129,14 @@ if (config.NODE_ENV === "development") {
 // Serves files from server/uploads/ at /uploads/ URL path.
 // Example: /uploads/disease/1707840000-abc123.jpg
 // ============================================================
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use(
+    "/uploads",
+    (req, res, next) => {
+        res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+        next();
+    },
+    express.static(path.join(__dirname, "uploads"))
+);
 
 // ============================================================
 // 6. Mount API Routes

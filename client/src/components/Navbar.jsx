@@ -66,9 +66,6 @@ export default function Navbar({ modelReady, loadingStatus, isOnline, installPro
                             <Link to="/market">{t("nav.market")}</Link>
                             <Link to="/qa">{t("nav.qa")}</Link>
                             <Link to="/community">{t("nav.community")}</Link>
-                            {["superadmin", "admin", "editor"].includes(user?.role) && (
-                                <Link to="/admin" className="nav-admin-link">⚙️ Admin</Link>
-                            )}
                         </>
                     ) : (
                         <>
@@ -101,6 +98,14 @@ export default function Navbar({ modelReady, loadingStatus, isOnline, installPro
                         <button className="install-btn" onClick={handleInstall}>
                             📲 Install
                         </button>
+                    )}
+
+                    {/* Admin Dashboard Badge for Admins */}
+                    {isAuthenticated && ["superadmin", "admin", "editor"].includes(user?.role) && (
+                        <Link to="/admin" className="nav-admin-badge" title="Admin Dashboard">
+                            <span className="admin-badge-icon">🛡️</span>
+                            <span>Admin</span>
+                        </Link>
                     )}
 
                     {/* Authentication state profile widget */}

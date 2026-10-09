@@ -12,7 +12,8 @@
     "install-all": "npm install && cd server && npm install && cd ../client && npm install",
     "build": "cd client && npm run build",
     "start": "cd server && npm start",
-    "seed": "cd server && node scripts/seed-db.js"
+    "seed": "cd server && node scripts/seed-db.js",
+    "make-admin": "cd server && node scripts/make-admin.js"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"

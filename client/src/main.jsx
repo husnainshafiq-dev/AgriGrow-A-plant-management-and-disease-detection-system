@@ -71,6 +71,18 @@ if (import.meta.env.DEV && "serviceWorker" in navigator) {
     }
 }
 
+// Automatically reload when a dynamic chunk fails due to a new deployment
+if (typeof window !== "undefined") {
+    window.addEventListener("vite:preloadError", (event) => {
+        console.warn("Vite chunk failed to load (new deployment detected). Reloading page...", event);
+        const lastReload = Number(sessionStorage.getItem("agrigrow_chunk_reload") || 0);
+        if (Date.now() - lastReload > 10000) {
+            sessionStorage.setItem("agrigrow_chunk_reload", String(Date.now()));
+            window.location.reload();
+        }
+    });
+}
+
 const rootEl = document.getElementById("root");
 if (rootEl) {
     createRoot(rootEl).render(

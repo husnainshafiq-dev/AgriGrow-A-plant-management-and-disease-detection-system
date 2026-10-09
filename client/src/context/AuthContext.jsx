@@ -41,7 +41,14 @@ async function parseResponse(res, fallbackError) {
 }
 
 export function AuthProvider({ children }) {
-    const [user, setUser] = useState(null);
+    const [user, setUser] = useState(() => {
+        try {
+            const stored = localStorage.getItem("agrigrow_user");
+            return stored ? JSON.parse(stored) : null;
+        } catch {
+            return null;
+        }
+    });
     const [token, setToken] = useState(() => localStorage.getItem("agrigrow_token"));
     const [loading, setLoading] = useState(true);
 
@@ -53,8 +60,20 @@ export function AuthProvider({ children }) {
         setToken(t);
     };
 
+    const saveUser = useCallback((u) => {
+        setUser(u);
+        try {
+            if (u) {
+                localStorage.setItem("agrigrow_user", JSON.stringify(u));
+            } else {
+                localStorage.removeItem("agrigrow_user");
+            }
+        } catch (e) {}
+    }, []);
+
     const clearAuth = useCallback(() => {
         localStorage.removeItem("agrigrow_token");
+        localStorage.removeItem("agrigrow_user");
         setToken(null);
         setUser(null);
     }, []);
@@ -77,19 +96,31 @@ export function AuthProvider({ children }) {
                 });
                 if (res.ok) {
                     const data = await parseResponse(res, "Session expired");
-                    const user = data.data?.user || data.user || data.data || data;
-                    setUser(user);
+                    const fetchedUser = data.data?.user || data.user || data.data || data;
+
+                    // Preserve cached base64 avatar if server returns empty or ephemeral /uploads/ path
+                    let cachedAvatar = "";
+                    try {
+                        const cached = JSON.parse(localStorage.getItem("agrigrow_user") || "{}");
+                        cachedAvatar = cached.avatar || "";
+                    } catch (e) {}
+
+                    if ((!fetchedUser.avatar || fetchedUser.avatar.startsWith("/uploads")) && cachedAvatar && cachedAvatar.startsWith("data:image/")) {
+                        fetchedUser.avatar = cachedAvatar;
+                    }
+
+                    saveUser(fetchedUser);
                     setToken(stored);
                 } else {
                     clearAuth();
                 }
             } catch {
-                /* network error — keep token, try again later */
+                /* network error — keep token and cached user, try again later */
             } finally {
                 setLoading(false);
             }
         })();
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [clearAuth, saveUser]);
 
     /* ── login ─────────────────────────────────────── */
     const login = useCallback(async (email, password) => {
@@ -109,12 +140,12 @@ export function AuthProvider({ children }) {
         if (!res.ok) throw new Error(data.error || data.message || "Invalid email or password");
 
         const token = data.data?.token || data.token;
-        const user = data.data?.user || data.user || data.data || data;
+        const loggedInUser = data.data?.user || data.user || data.data || data;
 
         saveToken(token);
-        setUser(user);
+        saveUser(loggedInUser);
         return data;
-    }, []);
+    }, [saveUser]);
 
     /* ── register ──────────────────────────────────── */
     const register = useCallback(async (formData) => {
@@ -136,9 +167,9 @@ export function AuthProvider({ children }) {
         const user = data.data?.user || data.user || data.data || data;
 
         saveToken(token);
-        setUser(user);
+        saveUser(user);
         return data;
-    }, []);
+    }, [saveUser]);
 
     /* ── logout ────────────────────────────────────── */
     const logout = useCallback(async () => {
@@ -169,9 +200,12 @@ export function AuthProvider({ children }) {
         if (!res.ok) throw new Error(data.error || data.message || "Update failed");
 
         const user = data.data?.user || data.user || data.data || data;
-        setUser(user);
+        if (profileData?.avatar && profileData.avatar.startsWith("data:image/")) {
+            user.avatar = profileData.avatar;
+        }
+        saveUser(user);
         return data;
-    }, [authHeaders]);
+    }, [authHeaders, saveUser]);
 
     /* ── change password ───────────────────────────── */
     const changePassword = useCallback(async (currentPassword, newPassword, confirmNewPassword) => {
@@ -194,9 +228,14 @@ export function AuthProvider({ children }) {
         return data;
     }, [authHeaders]);
 
-    /* ── update user directly in state ────────────── */
     const updateUser = useCallback((updatedUser) => {
-        setUser((prev) => (typeof updatedUser === "function" ? updatedUser(prev) : { ...prev, ...updatedUser }));
+        setUser((prev) => {
+            const next = typeof updatedUser === "function" ? updatedUser(prev) : { ...prev, ...updatedUser };
+            try {
+                if (next) localStorage.setItem("agrigrow_user", JSON.stringify(next));
+            } catch (e) {}
+            return next;
+        });
     }, []);
 
     const value = {
