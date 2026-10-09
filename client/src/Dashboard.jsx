@@ -684,7 +684,9 @@ export default function Dashboard({ onBack }) {
             if (latlngs.length < 3) return;
 
             const color = FIELD_COLORS[idx % FIELD_COLORS.length];
-            const isActive = activeField?._id === field._id;
+            const fieldId = field._id || field.id;
+            const currentActiveId = activeField?._id || activeField?.id;
+            const isActive = Boolean(currentActiveId && currentActiveId === fieldId);
 
             const polygon = L.polygon(latlngs, {
                 color: isActive ? "#FFD700" : color,
@@ -698,11 +700,18 @@ export default function Dashboard({ onBack }) {
                 { permanent: false, direction: "center", className: "field-tooltip" }
             );
 
-            polygon.on("click", () => {
+            polygon.on("click", (e) => {
+                if (e) {
+                    L.DomEvent.stopPropagation(e);
+                    if (e.originalEvent) {
+                        e.originalEvent.stopPropagation();
+                        e.originalEvent.preventDefault?.();
+                    }
+                }
                 flyToField(field);
             });
 
-            fieldLayersRef.current[field._id] = polygon;
+            fieldLayersRef.current[fieldId] = polygon;
 
             // Center marker
             if (field.centroid?.coordinates) {
@@ -715,7 +724,14 @@ export default function Dashboard({ onBack }) {
                     weight: 2,
                 }).addTo(map);
                 marker.bindTooltip(field.name, { direction: "top", offset: [0, -10] });
-                marker.on("click", () => {
+                marker.on("click", (e) => {
+                    if (e) {
+                        L.DomEvent.stopPropagation(e);
+                        if (e.originalEvent) {
+                            e.originalEvent.stopPropagation();
+                            e.originalEvent.preventDefault?.();
+                        }
+                    }
                     flyToField(field);
                 });
                 markersRef.current.push(marker);
@@ -761,8 +777,8 @@ export default function Dashboard({ onBack }) {
     };
 
     /* ── Fly to field (Opens saved land boundary) ──────────── */
-    const flyToField = (field) => {
-        if (!mapRef.current) return;
+    const flyToField = (field, targetTab = null) => {
+        if (!mapRef.current || !field) return;
         const map = mapRef.current;
 
         // Clean up any inspect pin or old drawing markers
@@ -793,6 +809,8 @@ export default function Dashboard({ onBack }) {
         } else if (field.centroid?.coordinates) {
             const [lng, lat] = field.centroid.coordinates;
             map.flyTo([lat, lng], FIELD_ZOOM, { duration: 1.2 });
+        } else if (field.centroid?.lat != null && field.centroid?.lng != null) {
+            map.flyTo([field.centroid.lat, field.centroid.lng], FIELD_ZOOM, { duration: 1.2 });
         }
 
         setActiveField(field);
@@ -800,24 +818,45 @@ export default function Dashboard({ onBack }) {
         // Find centroid coordinates of the selected land to fetch real-time live weather
         let targetLat = null;
         let targetLng = null;
-        if (field.centroid?.coordinates) {
-            targetLng = field.centroid.coordinates[0];
-            targetLat = field.centroid.coordinates[1];
+        if (Array.isArray(field.centroid?.coordinates) && field.centroid.coordinates.length >= 2) {
+            targetLng = Number(field.centroid.coordinates[0]);
+            targetLat = Number(field.centroid.coordinates[1]);
+        } else if (field.centroid?.lat != null && field.centroid?.lng != null) {
+            targetLat = Number(field.centroid.lat);
+            targetLng = Number(field.centroid.lng);
+        } else if (field.lat != null && field.lng != null) {
+            targetLat = Number(field.lat);
+            targetLng = Number(field.lng);
         } else if (field.boundary?.coordinates?.[0]?.[0]) {
-            targetLng = field.boundary.coordinates[0][0][0];
-            targetLat = field.boundary.coordinates[0][0][1];
+            targetLng = Number(field.boundary.coordinates[0][0][0]);
+            targetLat = Number(field.boundary.coordinates[0][0][1]);
         }
 
-        if (targetLat !== null && targetLng !== null) {
+        // Update selectedLand so all UI panels, title cards, and specs immediately reflect this field
+        setSelectedLand({
+            lat: targetLat,
+            lng: targetLng,
+            locationName: field.locationName || field.name || "Selected Farmland",
+            soilType: field.soilType || "Fertile Alluvial Loam",
+            season: field.season || seasonInfo?.seasonName || "Rabi Season (Wheat, Mustard)",
+            irrigation: field.irrigation || "Canal & Tubewell Irrigated",
+            elevation: field.elevation || "Level Agricultural Basin (~215m ASL)"
+        });
+
+        if (targetLat !== null && targetLng !== null && !isNaN(targetLat) && !isNaN(targetLng)) {
             setWeatherLoading(true);
             fetch(`${API_BASE}/weather?lat=${targetLat}&lng=${targetLng}`)
                 .then((r) => r.json())
                 .then((d) => {
                     if (d.success && d.data) {
-                        setWeather(d.data.current);
+                        const currentWeather = {
+                            ...d.data.current,
+                            locationName: field.name ? `${field.name}${field.locationName ? ` • ${field.locationName}` : ""}` : (d.data.current?.locationName || "Selected Field")
+                        };
+                        setWeather(currentWeather);
                         setForecast(d.data.forecast || []);
                         setSeasonInfo(d.data.season);
-                        field.weather = d.data.current;
+                        field.weather = currentWeather;
                     } else if (field.weather && !field.weather.isMock) {
                         setWeather(field.weather);
                     }
@@ -831,7 +870,13 @@ export default function Dashboard({ onBack }) {
         }
 
         setAiAnalysis(field.aiRecommendation ? { recommendation: field.aiRecommendation, weather: field.weather } : null);
-        setPanelTab("field");
+        
+        // Preserve active tab if user is currently inspecting weather or ai, otherwise open field tab
+        if (targetTab) {
+            setPanelTab(targetTab);
+        } else if (panelTab === "saved") {
+            setPanelTab("field");
+        }
         setPanelOpen(true);
     };
 
@@ -1625,23 +1670,26 @@ export default function Dashboard({ onBack }) {
                                     <div className="dash-saved-selector-row">
                                         <select
                                             className="dash-saved-select"
-                                            value={activeField?._id || ""}
+                                            value={activeField?._id || activeField?.id || ""}
                                             onChange={(e) => {
                                                 const selId = e.target.value;
                                                 if (!selId) {
                                                     setActiveField(null);
                                                 } else {
-                                                    const match = savedFields.find((f) => f._id === selId);
+                                                    const match = savedFields.find((f) => (f._id || f.id) === selId);
                                                     if (match) flyToField(match);
                                                 }
                                             }}
                                         >
                                             <option value="">-- Choose a Saved Land ({savedFields.length}) --</option>
-                                            {savedFields.map((f) => (
-                                                <option key={f._id} value={f._id}>
-                                                    🌾 {f.name} ({f.area?.value ? `${f.area.value.toFixed(1)} ${f.area.unit || "acres"}` : "Saved"})
-                                                </option>
-                                            ))}
+                                            {savedFields.map((f) => {
+                                                const fId = f._id || f.id;
+                                                return (
+                                                    <option key={fId} value={fId}>
+                                                        🌾 {f.name} ({f.area?.value ? `${f.area.value.toFixed(1)} ${f.area.unit || "acres"}` : "Saved"})
+                                                    </option>
+                                                );
+                                            })}
                                         </select>
                                         {activeField ? (
                                             <div className="dash-saved-btn-group">
@@ -1817,6 +1865,57 @@ export default function Dashboard({ onBack }) {
                     {/* ── WEATHER TAB ───────────────────────── */}
                     {panelTab === "weather" && (
                         <div className="dash-card-stack">
+                            {/* 📂 Quick selector to inspect saved field weather directly */}
+                            {savedFields.length > 0 && (
+                                <div className="dash-saved-selector-wrap">
+                                    <div className="dash-saved-selector-label">
+                                        <span className="dash-saved-icon">🌤️</span>
+                                        <span className="dash-saved-text">Field Weather Telemetry:</span>
+                                    </div>
+                                    <div className="dash-saved-selector-row">
+                                        <select
+                                            className="dash-saved-select"
+                                            value={activeField?._id || activeField?.id || ""}
+                                            onChange={(e) => {
+                                                const selId = e.target.value;
+                                                if (!selId) {
+                                                    setActiveField(null);
+                                                } else {
+                                                    const match = savedFields.find((f) => (f._id || f.id) === selId);
+                                                    if (match) flyToField(match, "weather");
+                                                }
+                                            }}
+                                        >
+                                            <option value="">-- Select a Field to Show Weather ({savedFields.length}) --</option>
+                                            {savedFields.map((f) => {
+                                                const fId = f._id || f.id;
+                                                return (
+                                                    <option key={fId} value={fId}>
+                                                        🌾 {f.name} ({f.area?.value ? `${f.area.value.toFixed(1)} ${f.area.unit || "acres"}` : "Saved"})
+                                                    </option>
+                                                );
+                                            })}
+                                        </select>
+                                        {activeField ? (
+                                            <div className="dash-saved-btn-group">
+                                                <button
+                                                    type="button"
+                                                    className="dash-clear-sel-btn"
+                                                    onClick={() => {
+                                                        setActiveField(null);
+                                                    }}
+                                                    title="Deselect active land"
+                                                >
+                                                    ✕ Deselect
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <span className="dash-saved-count-pill">{savedFields.length} saved</span>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
                             {weatherLoading && (
                                 <div className="dash-card glass">
                                     <div className="dash-loading-state">
@@ -1837,7 +1936,11 @@ export default function Dashboard({ onBack }) {
                                             <div className="weather-main">
                                                 <span className="weather-temp">{weather.temperature}°C</span>
                                                 <span className="weather-desc">{weather.conditionDetail || weather.condition}</span>
-                                                <span className="weather-location">{weather.locationName || "Your Field"}</span>
+                                                <span className="weather-location">
+                                                    {activeField?.name 
+                                                        ? `${activeField.name}${activeField.locationName ? ` • ${activeField.locationName}` : ""}`
+                                                        : (weather.locationName || "Your Field")}
+                                                </span>
                                             </div>
                                         </div>
                                         <div className="weather-grid">
@@ -1921,10 +2024,11 @@ export default function Dashboard({ onBack }) {
                             {!weather && !weatherLoading && (
                                 <div className="dash-empty-state">
                                     <span className="empty-icon">🌤️</span>
-                                    <p>No weather data yet</p>
+                                    <p>{activeField ? `Fetching weather for ${activeField.name}...` : "Select a field to show the weather"}</p>
                                     <p className="empty-sub">
-                                        Draw a field boundary and click "Finish" to
-                                        fetch weather data for your location.
+                                        {activeField 
+                                            ? "Telemetry data is refreshing for this farmland." 
+                                            : "Choose a saved field from the dropdown above, click a field on the map, or draw a new boundary to view live weather."}
                                     </p>
                                 </div>
                             )}
@@ -2108,10 +2212,14 @@ export default function Dashboard({ onBack }) {
                                 </div>
                             )}
 
-                            {savedFields.map((field, idx) => (
+                            {savedFields.map((field, idx) => {
+                                const fId = field._id || field.id;
+                                const activeId = activeField?._id || activeField?.id;
+                                const isCardActive = Boolean(activeId && activeId === fId);
+                                return (
                                 <div
-                                    key={field._id}
-                                    className={`dash-card glass saved-field-card ${activeField?._id === field._id ? "active" : ""}`}
+                                    key={fId || idx}
+                                    className={`dash-card glass saved-field-card ${isCardActive ? "active" : ""}`}
                                     onClick={() => flyToField(field)}
                                 >
                                     <div
@@ -2149,7 +2257,8 @@ export default function Dashboard({ onBack }) {
                                         </button>
                                     </div>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </div>
