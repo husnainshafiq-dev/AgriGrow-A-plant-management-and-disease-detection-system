@@ -1303,7 +1303,8 @@ export default function Dashboard({ onBack }) {
                         method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(payload),
                     });
                     const data = await res.json();
-                    if (data?.success && data?.data) {
+                    const text = data?.data?.recommendation?.fullResponse;
+                    if (data?.success && text && (!text.includes("AI servers are currently busy") || text.length > 250)) {
                         setAiCrops(data.data);
                     } else {
                         setAiCrops(getClientFallbackCrops(weather, seasonInfo, area));
@@ -1320,7 +1321,8 @@ export default function Dashboard({ onBack }) {
                         method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(payload),
                     });
                     const data = await res.json();
-                    if (data?.success && data?.data) {
+                    const text = data?.data?.recommendation?.fullResponse;
+                    if (data?.success && text && (!text.includes("AI servers are currently busy") || text.length > 250)) {
                         setAiDiseases(data.data);
                     } else {
                         setAiDiseases(getClientFallbackDiseases(weather, seasonInfo));
@@ -1337,7 +1339,8 @@ export default function Dashboard({ onBack }) {
                         method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(payload),
                     });
                     const data = await res.json();
-                    if (data?.success && data?.data) {
+                    const text = data?.data?.recommendation?.fullResponse;
+                    if (data?.success && text && (!text.includes("AI servers are currently busy") || text.length > 250)) {
                         setAiTips(data.data);
                     } else {
                         setAiTips(getClientFallbackTips(weather, seasonInfo, area));

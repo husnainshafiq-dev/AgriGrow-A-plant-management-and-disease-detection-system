@@ -109,19 +109,22 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // -----------------------------------------------------------
 const throttleState = {
     lastRequestTime: 0,
-    minIntervalMs: 15000, // Minimum 15 seconds between requests
+    minIntervalMs: 15000, // Used for direct Gemini free-tier rate limits
+    minOpenRouterIntervalMs: 500, // OpenRouter handles higher throughput
 };
 
-const throttleRequest = async () => {
+const throttleRequest = async (useOpenRouter = false) => {
     const now = Date.now();
     const elapsed = now - throttleState.lastRequestTime;
-    if (elapsed < throttleState.minIntervalMs) {
-        const waitTime = throttleState.minIntervalMs - elapsed;
-        logger.info(`Throttling Gemini request — waiting ${waitTime}ms`);
+    const interval = useOpenRouter ? throttleState.minOpenRouterIntervalMs : throttleState.minIntervalMs;
+    if (elapsed < interval) {
+        const waitTime = interval - elapsed;
+        logger.info(`Throttling AI request — waiting ${waitTime}ms`);
         await sleep(waitTime);
     }
     throttleState.lastRequestTime = Date.now();
 };
+
 
 // -----------------------------------------------------------
 // Exponential Backoff Configuration
@@ -515,7 +518,7 @@ const callGemini = async (prompt, options = {}) => {
     for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
         try {
             // Throttle: enforce minimum gap between requests
-            await throttleRequest();
+            await throttleRequest(useOpenRouter);
 
             if (attempt > 0) {
                 logger.info(`AI API retry attempt ${attempt}/${RETRY_CONFIG.maxRetries}`);

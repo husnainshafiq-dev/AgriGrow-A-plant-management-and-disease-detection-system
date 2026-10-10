@@ -411,9 +411,10 @@ const detectSeason = (month = new Date().getMonth(), lat = 30) => {
 /**
  * STEP 1: Best Crops Section Only
  */
-const buildCropsPrompt = (weather, seasonInfo, areaAcres) => {
+const buildCropsPrompt = (weather, seasonInfo, areaAcres, locationName = "") => {
+    const loc = locationName || weather?.locationName || "Pakistan";
     return `
-Act as AgriGrow AI, an expert agricultural advisor. Analyze a ${areaAcres?.toFixed(1)}-acre farm in Kohlu, Balochistan under these current conditions:
+Act as AgriGrow AI, an expert agricultural advisor. Analyze a ${areaAcres?.toFixed(1)}-acre farm in ${loc} under these current conditions:
 - Temp: ${weather?.temperature}°C
 - Humidity: ${weather?.humidity}%
 - Season: ${seasonInfo?.seasonName}
@@ -436,14 +437,15 @@ Keep language simple, practical, and use bullet points.
 /**
  * STEP 2: Disease Prevention Section Only
  */
-const buildDiseasePrompt = (weather, seasonInfo, cropsContext = "") => {
+const buildDiseasePrompt = (weather, seasonInfo, cropsContext = "", locationName = "") => {
+    const loc = locationName || weather?.locationName || "Pakistan";
     return `
-Act as AgriGrow AI. Based on the current temperature (${weather?.temperature}°C), humidity (${weather?.humidity}%), and season (${seasonInfo?.seasonName}), analyze the pest and disease risks${cropsContext ? ` for these crops: ${cropsContext}` : ""}.
+Act as AgriGrow AI. Based on the current temperature (${weather?.temperature}°C), humidity (${weather?.humidity}%), location (${loc}), and season (${seasonInfo?.seasonName}), analyze the pest and disease risks${cropsContext ? ` for these crops: ${cropsContext}` : ""}.
 
 Provide ONLY the following section. Do not generate crop choices or weather tips yet.
 
 ## 🛡️ Disease Prevention for Current Conditions
-- List the **top 5 most likely diseases or pests** that could affect crops in these extreme conditions (focus heavily on soil pathogens, heat injury, or dry-weather sucking pests like whiteflies/mites).
+- List the **top 5 most likely diseases or pests** that could affect crops in these conditions.
 - For each disease:
   - **Cause** (fungal, bacterial, viral, environmental)
   - **Early symptoms** to watch for
@@ -457,9 +459,10 @@ Keep language simple, practical, and use bullet points. Include cost estimates i
 /**
  * STEP 3: Weather Tips & Season Planning
  */
-const buildPlanningPrompt = (weather, seasonInfo, areaAcres, cropsContext = "") => {
+const buildPlanningPrompt = (weather, seasonInfo, areaAcres, cropsContext = "", locationName = "") => {
+    const loc = locationName || weather?.locationName || "Pakistan";
     return `
-Act as AgriGrow AI. Complete the seasonal agricultural strategy for a ${areaAcres?.toFixed(1)}-acre farming operation under these conditions:
+Act as AgriGrow AI. Complete the seasonal agricultural strategy for a ${areaAcres?.toFixed(1)}-acre farming operation in ${loc} under these conditions:
 - Temp: ${weather?.temperature}°C
 - Humidity: ${weather?.humidity}%
 - Season: ${seasonInfo?.seasonName}
