@@ -135,13 +135,17 @@ function FlyToLocation({ position, zoom = 16 }) {
    CHILD: MapClickHandler
    Handles click events on the map for adding boundary points.
    ══════════════════════════════════════════════════════════════ */
-function MapClickHandler({ enabled, onMapClick }) {
+function MapClickHandler({ enabled, onMapClick, onAnyClick }) {
     useMapEvents({
         click(e) {
+            onAnyClick?.();
             if (enabled && onMapClick) {
                 const point = safeLatLng(e.latlng.lat, e.latlng.lng);
                 if (point) onMapClick(point);
             }
+        },
+        dragstart() {
+            onAnyClick?.();
         },
     });
     return null;
@@ -201,6 +205,22 @@ export default function PrecisionMap({
     const [showDropdown, setShowDropdown] = useState(false);
     const [searchMarker, setSearchMarker] = useState(null);
     const searchTimeout = useRef(null);
+    const searchWrapRef = useRef(null);
+
+    /* ── Close search dropdown when clicking anywhere outside (including map) ── */
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (searchWrapRef.current && !searchWrapRef.current.contains(e.target)) {
+                setShowDropdown(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        document.addEventListener("touchstart", handleClickOutside, { passive: true });
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+            document.removeEventListener("touchstart", handleClickOutside);
+        };
+    }, []);
 
     /* ── GPS Geolocation on mount ─────────────────────────────── */
     useEffect(() => {
@@ -411,10 +431,11 @@ export default function PrecisionMap({
                 {/* Resize fix */}
                 <InvalidateSizeOnMount />
 
-                {/* Click handler for drawing */}
+                {/* Click handler for drawing and map interaction */}
                 <MapClickHandler
                     enabled={drawingMode}
                     onMapClick={handleMapClick}
+                    onAnyClick={() => setShowDropdown(false)}
                 />
 
                 {/* Field boundary polygon */}
@@ -469,8 +490,8 @@ export default function PrecisionMap({
 
             {/* Search Bar */}
             <div
+                ref={searchWrapRef}
                 className="pm-search-wrap"
-                onClick={(e) => e.stopPropagation()}
             >
                 <div className="pm-search-bar">
                     <span className="pm-search-icon">🔍</span>
@@ -481,6 +502,9 @@ export default function PrecisionMap({
                         value={searchQuery}
                         onChange={(e) => onSearchInput(e.target.value)}
                         onFocus={() =>
+                            searchResults.length > 0 && setShowDropdown(true)
+                        }
+                        onClick={() =>
                             searchResults.length > 0 && setShowDropdown(true)
                         }
                         onKeyDown={(e) => {

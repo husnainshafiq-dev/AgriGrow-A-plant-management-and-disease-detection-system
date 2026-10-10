@@ -373,6 +373,22 @@ export default function Dashboard({ onBack }) {
     const [searchResults, setSearchResults] = useState([]);
     const [searchLoading, setSearchLoading] = useState(false);
     const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+    const searchWrapRef = useRef(null);
+
+    /* ── Close search dropdown when clicking anywhere outside (including map) ── */
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (searchWrapRef.current && !searchWrapRef.current.contains(e.target)) {
+                setShowSearchDropdown(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        document.addEventListener("touchstart", handleClickOutside, { passive: true });
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+            document.removeEventListener("touchstart", handleClickOutside);
+        };
+    }, []);
 
     /* ── Refs ───────────────────────────────────────────────── */
     const mapContainerRef = useRef(null);
@@ -626,6 +642,10 @@ export default function Dashboard({ onBack }) {
         mapRef.current = map;
         setMapReady(true);
 
+        // ── Dismiss search dropdown on any map interaction ──
+        map.on("click", () => setShowSearchDropdown(false));
+        map.on("dragstart", () => setShowSearchDropdown(false));
+
         // ── FIX: Force Leaflet to recalculate container size ──
         // Leaflet initializes before the flex layout is fully computed,
         // causing gray/missing tiles. Multiple invalidateSize calls at
@@ -706,6 +726,7 @@ export default function Dashboard({ onBack }) {
             map.getContainer().style.cursor = "crosshair";
 
             const onMapClick = (e) => {
+                setShowSearchDropdown(false);
                 setDrawingPoints((prev) => {
                     const next = [...prev, { lat: e.latlng.lat, lng: e.latlng.lng }];
 
@@ -751,6 +772,7 @@ export default function Dashboard({ onBack }) {
         } else {
             // When not drawing, clicking on map selects that land parcel and loads its live telemetry
             const onInspectClick = async (e) => {
+                setShowSearchDropdown(false);
                 const lat = e.latlng.lat;
                 const lng = e.latlng.lng;
 
@@ -1606,7 +1628,7 @@ export default function Dashboard({ onBack }) {
                         )}
 
                         {/* 🔍 Location Search Bar */}
-                        <div className="dash-search-wrap" onClick={(e) => e.stopPropagation()}>
+                        <div ref={searchWrapRef} className="dash-search-wrap">
                             <div className="dash-search-bar">
                                 <span className="dash-search-icon">🔍</span>
                                 <input
@@ -1616,6 +1638,7 @@ export default function Dashboard({ onBack }) {
                                     value={searchQuery}
                                     onChange={(e) => onSearchInput(e.target.value)}
                                     onFocus={() => searchResults.length > 0 && setShowSearchDropdown(true)}
+                                    onClick={() => searchResults.length > 0 && setShowSearchDropdown(true)}
                                     onKeyDown={(e) => {
                                         if (e.key === "Enter") {
                                             e.preventDefault();
