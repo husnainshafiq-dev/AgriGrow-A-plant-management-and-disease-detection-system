@@ -1402,6 +1402,78 @@ export default function Dashboard({ onBack }) {
         reader.readAsDataURL(f);
     };
 
+    const handleOfflineScanPredict = async () => {
+        const { loadOfflineModel, predictOffline, isModelLoaded } = await import("./offlineModel");
+        if (!isModelLoaded()) {
+            await loadOfflineModel();
+        }
+
+        const img = new Image();
+        img.src = scanPreview;
+        await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = () => reject(new Error("Image could not be decoded for browser inference"));
+        });
+
+        const offlineResult = await predictOffline(img);
+        setScanResult(offlineResult);
+
+        // Save scan locally in IndexedDB
+        try {
+            const { saveOfflineScan, syncToServer } = await import("./offlineStorage");
+            await saveOfflineScan(offlineResult, scanPreview);
+            if (navigator.onLine) {
+                syncToServer().catch(() => {});
+            }
+        } catch (e) {
+            console.warn("Offline scan storage notice:", e);
+        }
+
+        // Sync to active field if online
+        if (navigator.onLine && scanFile) {
+            try {
+                const centroid = drawingPoints.length >= 3
+                    ? calcCentroid(drawingPoints)
+                    : (activeField?.centroid?.coordinates
+                        ? { lat: activeField.centroid.coordinates[1], lng: activeField.centroid.coordinates[0] }
+                        : { lat: 0, lng: 0 });
+
+                const fd = new FormData();
+                fd.append("image", scanFile);
+                fd.append("fieldId", activeField?._id || "");
+                fd.append("lat", centroid.lat);
+                fd.append("lng", centroid.lng);
+                fd.append("prediction", JSON.stringify(offlineResult));
+
+                const syncRes = await fetch(`${API_BASE}/scan`, {
+                    method: "POST",
+                    headers: { ...authHeaders() },
+                    body: fd,
+                });
+                if (syncRes.ok) {
+                    const syncData = await syncRes.json();
+                    if (syncData?.data) {
+                        setScanResult((prev) => ({
+                            ...(prev || offlineResult),
+                            ...syncData.data,
+                            prediction: offlineResult.prediction,
+                            confidence: offlineResult.confidence,
+                            is_healthy: offlineResult.is_healthy,
+                            description: offlineResult.description,
+                            recommendation: offlineResult.recommendation,
+                            top_predictions: offlineResult.top_predictions,
+                            offline: true,
+                        }));
+                    }
+                }
+            } catch (syncErr) {
+                console.warn("Background field sync notice:", syncErr);
+            }
+        }
+
+        return offlineResult;
+    };
+
     const submitScan = async () => {
         if (!scanFile) return;
 
@@ -1421,22 +1493,59 @@ export default function Dashboard({ onBack }) {
         fd.append("lng", centroid.lng);
 
         try {
-            const res = await fetch(`${API_BASE}/scan`, {
-                method: "POST",
-                headers: { ...authHeaders() },
-                body: fd,
-            });
-            const data = await res.json();
-            if (data.success) {
-                setScanResult(data.data);
-            } else {
-                showError(data.error || "Scan failed");
-            }
-        } catch {
-            showError("Disease scan request failed");
-        }
+            if (navigator.onLine) {
+                // Check if online ML microservice is healthy & loaded
+                let isReady = false;
+                try {
+                    const hRes = await fetch("/api/health", { cache: "no-store" });
+                    if (hRes.ok) {
+                        const hData = await hRes.json();
+                        const mlStatus = hData?.ml_service?.status;
+                        isReady = (
+                            hData?.status === "ready" &&
+                            (mlStatus === "available" || mlStatus === "healthy") &&
+                            hData?.ml_service?.model_loaded === true
+                        );
+                    }
+                } catch (_) {}
 
-        setScanLoading(false);
+                if (isReady) {
+                    const res = await fetch(`${API_BASE}/scan`, {
+                        method: "POST",
+                        headers: { ...authHeaders() },
+                        body: fd,
+                    });
+                    const data = await res.json().catch(() => ({}));
+
+                    const isValidResult = (
+                        res.ok &&
+                        data.success &&
+                        data.data &&
+                        data.data.mlResult?.prediction !== "Unknown" &&
+                        data.data.mlResult?.description !== "ML service unavailable" &&
+                        (data.data.mlResult?.confidence > 0 || data.data.prediction?.confidence > 0)
+                    );
+
+                    if (isValidResult) {
+                        setScanResult(data.data);
+                        setScanLoading(false);
+                        return;
+                    }
+                }
+            }
+
+            // Fallback to browser TensorFlow.js model (same engine as detector page)
+            await handleOfflineScanPredict();
+        } catch (err) {
+            console.warn("Online scan failed, attempting browser model fallback...", err);
+            try {
+                await handleOfflineScanPredict();
+            } catch (fallbackErr) {
+                showError("Disease scan failed: " + (fallbackErr.message || "Could not analyze image"));
+            }
+        } finally {
+            setScanLoading(false);
+        }
     };
 
     // deleteField and flyToField defined above
@@ -2273,7 +2382,13 @@ export default function Dashboard({ onBack }) {
                                             <img src={scanPreview} alt="Scan preview" className="scan-preview-img" />
                                             <button
                                                 className="scan-remove"
-                                                onClick={(e) => { e.stopPropagation(); setScanFile(null); setScanPreview(null); setScanResult(null); }}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setScanFile(null);
+                                                    setScanPreview(null);
+                                                    setScanResult(null);
+                                                    if (scanInputRef.current) scanInputRef.current.value = "";
+                                                }}
                                             >
                                                 ×
                                             </button>
@@ -2308,40 +2423,102 @@ export default function Dashboard({ onBack }) {
                             </div>
 
                             {/* Scan result */}
-                            {scanResult && (
-                                <div className="dash-card glass">
-                                    <h3 className="dash-card-title">
-                                        {scanResult.mlResult?.is_healthy || scanResult.prediction?.isHealthy
-                                            ? "✅ Healthy Plant"
-                                            : "⚠️ Disease Detected"
-                                        }
-                                    </h3>
-                                    <div className="scan-result-body">
-                                        <div className="scan-disease-name">
-                                            {scanResult.mlResult?.prediction || scanResult.prediction?.disease || "Unknown"}
+                            {scanResult && (() => {
+                                const isHealthy = Boolean(
+                                    scanResult.is_healthy ??
+                                    scanResult.isHealthy ??
+                                    scanResult.mlResult?.is_healthy ??
+                                    scanResult.prediction?.isHealthy
+                                );
+                                const diseaseName = (
+                                    (typeof scanResult.prediction === "string" ? scanResult.prediction : null) ||
+                                    scanResult.prediction?.disease ||
+                                    scanResult.mlResult?.prediction ||
+                                    scanResult.prediction ||
+                                    "Unknown"
+                                );
+                                const confVal = Number(
+                                    scanResult.confidence ??
+                                    scanResult.mlResult?.confidence ??
+                                    scanResult.prediction?.confidence ??
+                                    0
+                                );
+                                const descText = scanResult.description || scanResult.mlResult?.description || "";
+                                const recText = scanResult.recommendation || scanResult.mlResult?.recommendation || "";
+                                const topPreds = (
+                                    scanResult.top_predictions ||
+                                    scanResult.topPredictions ||
+                                    scanResult.mlResult?.top_predictions ||
+                                    []
+                                );
+
+                                return (
+                                    <div className="dash-card glass">
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                                            <h3 className="dash-card-title" style={{ margin: 0 }}>
+                                                {isHealthy ? "✅ Healthy Plant" : "⚠️ Disease Detected"}
+                                            </h3>
+                                            {scanResult.offline && (
+                                                <span style={{ fontSize: "11px", padding: "2px 8px", borderRadius: "12px", background: "rgba(16, 185, 129, 0.15)", color: "#10b981", fontWeight: 600 }}>
+                                                    Browser AI Engine
+                                                </span>
+                                            )}
                                         </div>
-                                        <div className="scan-confidence">
-                                            <div className="scan-conf-label">
-                                                Confidence: <strong>{(scanResult.mlResult?.confidence || scanResult.prediction?.confidence || 0).toFixed(1)}%</strong>
+                                        <div className="scan-result-body">
+                                            <div className="scan-disease-name">{diseaseName}</div>
+                                            <div className="scan-confidence">
+                                                <div className="scan-conf-label">
+                                                    Confidence: <strong>{confVal.toFixed(1)}%</strong>
+                                                </div>
+                                                <div className="scan-conf-bar">
+                                                    <div
+                                                        className="scan-conf-fill"
+                                                        style={{
+                                                            width: `${Math.min(100, Math.max(0, confVal))}%`,
+                                                        }}
+                                                    />
+                                                </div>
                                             </div>
-                                            <div className="scan-conf-bar">
-                                                <div
-                                                    className="scan-conf-fill"
-                                                    style={{
-                                                        width: `${scanResult.mlResult?.confidence || scanResult.prediction?.confidence || 0}%`,
-                                                    }}
-                                                />
-                                            </div>
+                                            {descText && (
+                                                <p className="scan-desc">{descText}</p>
+                                            )}
+                                            {recText && (
+                                                <p className="scan-rec">{recText}</p>
+                                            )}
+                                            {topPreds.length > 0 && (
+                                                <div className="top-preds" style={{ marginTop: "12px", borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "10px" }}>
+                                                    <h4 style={{ fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--dash-text-muted)", marginBottom: "8px" }}>
+                                                        Top Predictions
+                                                    </h4>
+                                                    <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "6px" }}>
+                                                        {topPreds.slice(0, 3).map((p, i) => (
+                                                            <li key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "12px", gap: "8px" }}>
+                                                                <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={p.class}>{p.class}</span>
+                                                                <div style={{ width: "80px", height: "4px", background: "rgba(255,255,255,0.08)", borderRadius: "2px", overflow: "hidden" }}>
+                                                                    <div style={{ width: `${p.probability}%`, height: "100%", background: "var(--dash-accent)", borderRadius: "2px" }} />
+                                                                </div>
+                                                                <span style={{ width: "42px", textAlign: "right", color: "var(--dash-text-muted)", fontFamily: "monospace" }}>{Number(p.probability).toFixed(1)}%</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                            <button
+                                                className="dash-btn outline full-width"
+                                                style={{ marginTop: "12px", fontSize: "13px" }}
+                                                onClick={() => {
+                                                    setScanFile(null);
+                                                    setScanPreview(null);
+                                                    setScanResult(null);
+                                                    if (scanInputRef.current) scanInputRef.current.value = "";
+                                                }}
+                                            >
+                                                🔄 Scan Another Image
+                                            </button>
                                         </div>
-                                        {scanResult.mlResult?.description && (
-                                            <p className="scan-desc">{scanResult.mlResult.description}</p>
-                                        )}
-                                        {scanResult.mlResult?.recommendation && (
-                                            <p className="scan-rec">{scanResult.mlResult.recommendation}</p>
-                                        )}
                                     </div>
-                                </div>
-                            )}
+                                );
+                            })()}
                         </div>
                     )}
 

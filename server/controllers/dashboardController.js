@@ -418,8 +418,8 @@ const analyzeTips = asyncHandler(async (req, res) => {
  * Upload a crop image for disease prediction and link it
  * to a field as a GeoJSON Point disease report.
  *
- * Uses the existing ML service for disease detection,
- * then asks Gemini for additional advice with field context.
+ * Uses the existing ML service for disease detection (or accepts client prediction),
+ * then links the scan to a field with weather telemetry.
  */
 const scanDisease = asyncHandler(async (req, res) => {
     if (!req.file) {
@@ -434,25 +434,50 @@ const scanDisease = asyncHandler(async (req, res) => {
     // 1. Get the image URL
     const imageUrl = `/uploads/disease/${req.file.filename}`;
 
-    // 2. Call ML service for disease detection
-    const { predictDisease } = require("../services/mlService");
-    let mlResult;
-
-    try {
-        mlResult = await predictDisease(req.file.path);
-    } catch (err) {
-        logger.error(`ML prediction error: ${err.message}`);
-        // Return a placeholder result so the flow continues
-        mlResult = {
-            prediction: "Unknown",
-            confidence: 0,
-            is_healthy: false,
-            description: "ML service unavailable",
-            recommendation: "Please try again later",
-        };
+    // 2. Check if client provided prediction (from browser TensorFlow.js model)
+    let mlResult = null;
+    if (req.body.prediction) {
+        try {
+            const parsed = typeof req.body.prediction === "string"
+                ? JSON.parse(req.body.prediction)
+                : req.body.prediction;
+            mlResult = {
+                prediction: parsed.prediction || parsed.disease || "Unknown",
+                confidence: Number(parsed.confidence) || 0,
+                is_healthy: Boolean(parsed.is_healthy ?? parsed.isHealthy),
+                description: parsed.description || "",
+                recommendation: parsed.recommendation || "",
+                top_predictions: parsed.top_predictions || parsed.topPredictions || [],
+            };
+        } catch (_) {
+            mlResult = {
+                prediction: String(req.body.prediction),
+                confidence: Number(req.body.confidence) || 0,
+                is_healthy: req.body.isHealthy === "true" || req.body.is_healthy === "true",
+                description: req.body.description || "",
+                recommendation: req.body.recommendation || "",
+                top_predictions: [],
+            };
+        }
     }
 
-    // 3. Fetch weather for context
+    // 3. If no client prediction, call the Python ML microservice
+    if (!mlResult) {
+        const { predictDisease } = require("../services/mlService");
+        try {
+            mlResult = await predictDisease(req.file.path);
+        } catch (err) {
+            logger.warn(`ML prediction error: ${err.message}`);
+            // Return 503 so client knows to fall back to browser model
+            return res.status(503).json({
+                success: false,
+                error: "ML service unavailable",
+                message: "Online disease detection service is temporarily unavailable",
+            });
+        }
+    }
+
+    // 4. Fetch weather for context
     let weather = null;
     if (latitude && longitude) {
         try {
@@ -462,7 +487,7 @@ const scanDisease = asyncHandler(async (req, res) => {
         }
     }
 
-    // 4. Build disease point
+    // 5. Build disease point
     const diseasePoint = {
         location: {
             type: "Point",
@@ -473,14 +498,14 @@ const scanDisease = asyncHandler(async (req, res) => {
         prediction: {
             disease: mlResult.prediction || "Unknown",
             confidence: mlResult.confidence || 0,
-            isHealthy: mlResult.is_healthy || false,
+            isHealthy: Boolean(mlResult.is_healthy ?? mlResult.isHealthy),
         },
         weatherAtScan: weather || undefined,
         scannedAt: new Date(),
     };
 
-    // 5. If linked to a field, add the disease point
-    if (fieldId) {
+    // 6. If linked to a field, add the disease point
+    if (fieldId && mongoose.Types.ObjectId.isValid(fieldId)) {
         try {
             await GeoField.findByIdAndUpdate(fieldId, {
                 $push: { diseasePoints: diseasePoint },
