@@ -1744,23 +1744,6 @@ export default function Dashboard({ onBack }) {
                     )}
                 </div>
 
-                {/* Small floating toggle button to open options when closed (desktop only) */}
-                {!panelOpen && (
-                    <button
-                        type="button"
-                        className="dash-floating-options-toggle dash-desktop-only"
-                        onClick={() => {
-                            setPanelOpen(true);
-                            setPanelHeight(null);
-                        }}
-                        title="Open options panel"
-                        aria-label="Open options panel"
-                    >
-                        <span className="dash-floating-title">🌾 Options</span>
-                        <span className="dash-toggle-badge small">▲</span>
-                    </button>
-                )}
-
                 {/* Map loading overlay */}
                 {!mapReady && (
                     <div className="dash-map-loading">
